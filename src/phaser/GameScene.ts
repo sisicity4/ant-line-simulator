@@ -236,11 +236,25 @@ export class GameScene extends Phaser.Scene {
       this.antLayer.fillEllipse(0, 0, 9, 4.6);
       this.antLayer.fillStyle(0x73675a, 0.86);
       this.antLayer.fillEllipse(4.7, 0, 4.7, 3.6);
+      if (ant.cargoSize > 0) {
+        this.antLayer.fillStyle(0xd4c174, 0.95);
+        this.antLayer.fillCircle(-9.8, 0, ant.cargoSize);
+        this.antLayer.fillStyle(0xf0df98, 0.72);
+        this.antLayer.fillCircle(-13.2, -3, ant.cargoSize * 0.32);
+        this.antLayer.lineStyle(1, 0x8f7f49, 0.28);
+        this.antLayer.strokeCircle(-9.8, 0, ant.cargoSize);
+      }
       if (ant.mode === "return") {
         this.antLayer.fillStyle(0xd7c87a, 0.9);
-        this.antLayer.fillCircle(-5.4, 0, 2);
+        this.antLayer.fillCircle(-5.4, 0, ant.cargoSize > 0 ? 1.4 : 2);
       }
       this.antLayer.restore();
+      if (ant.cargoSize > 0) {
+        this.antLayer.fillStyle(0xf0df98, 0.88);
+        this.antLayer.fillCircle(ant.x, ant.y - 12, 5.5);
+        this.antLayer.lineStyle(1, 0x8f7f49, 0.55);
+        this.antLayer.strokeCircle(ant.x, ant.y - 12, 8);
+      }
     }
   }
 

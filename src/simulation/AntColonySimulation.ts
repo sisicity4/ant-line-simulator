@@ -33,6 +33,7 @@ export class AntColonySimulation {
   private nextAntId = 1;
   private nextObjectId = 1;
   private spawnTimer = 0;
+  private cargoTimer = 4;
   private hasInteracted = false;
   private challengePhase: "disturb" | "recover" = "disturb";
   private reactionText = "行列の流れを見て、効きそうな場所に置いてみよう";
@@ -62,6 +63,7 @@ export class AntColonySimulation {
     this.deliveredFood = 0;
     this.combo = 0;
     this.spawnTimer = 0;
+    this.cargoTimer = 4;
     this.hasInteracted = false;
     this.challengePhase = "disturb";
     this.reactionText = "行列の流れを見て、効きそうな場所に置いてみよう";
@@ -136,6 +138,10 @@ export class AntColonySimulation {
       this.spawnTimer = 0;
       this.spawnAnt(this.angleTo(this.routeTarget(this.map.route, 1), this.nest) + rand(-0.45, 0.45));
     }
+    this.cargoTimer -= dt;
+    if (this.cargoTimer <= 0) {
+      this.cargoTimer = this.markCargoAnt() ? rand(13, 22) : 1.5;
+    }
 
     this.pheromones.step(dt * 60);
     this.stepObjects(dt);
@@ -151,6 +157,7 @@ export class AntColonySimulation {
       deliveredFood: this.deliveredFood,
       trailIntegrity: this.calculateTrailIntegrity(),
       activeAnts: this.ants.length,
+      activeCargo: this.ants.filter((ant) => ant.cargoSize > 0).length,
       selectedTool: this.selectedTool,
       mapName: this.map.name,
       challengeText: this.challengeText(),
@@ -206,10 +213,18 @@ export class AntColonySimulation {
       }
       if (Math.hypot(ant.x - this.nest.x, ant.y - this.nest.y) < 32 && ant.mode === "forage") {
         this.deliveredFood += 1;
-        this.score += 18;
+        const cargoBonus = ant.cargoValue;
+        this.score += 18 + cargoBonus;
+        if (cargoBonus > 0) {
+          this.setReaction(`大きいかけらを運び切った。+${cargoBonus}`);
+          ant.cargoSize = 0;
+          ant.cargoValue = 0;
+        }
         if (this.challengePhase === "recover" && this.hasInteracted) {
           this.score += 6;
-          this.setReaction("行列が戻ってきた。観察ボーナス。");
+          if (cargoBonus === 0) {
+            this.setReaction("行列が戻ってきた。観察ボーナス。");
+          }
         }
         this.pheromones.addFood(ant.x, ant.y, 0.8);
       }
@@ -377,6 +392,43 @@ export class AntColonySimulation {
       mode: "forage",
       routeIndex: 1,
       memoryHeading: this.angleTo(this.routeTarget(route, 1), this.nest),
+      cargoSize: 0,
+      cargoValue: 0,
+      washedTtl: 0,
+      wiggle: Math.random() * TAU
+    });
+  }
+
+  private markCargoAnt(): boolean {
+    const candidates = this.ants.filter((ant) => ant.mode === "return" && ant.cargoSize === 0);
+    const ant = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!ant) {
+      if (this.ants.length >= 100) return false;
+      this.spawnCargoAnt();
+      this.setReaction("食べ物の近くから、大きいかけらを運ぶアリが出た。");
+      return true;
+    }
+    ant.cargoSize = rand(9, 14);
+    ant.cargoValue = Math.round(45 + ant.cargoSize * 8);
+    ant.speed *= 0.82;
+    this.setReaction("大きいかけらを運ぶアリが出た。そっと見守ると高得点。");
+    return true;
+  }
+
+  private spawnCargoAnt(): void {
+    const id = this.nextAntId++;
+    const route = this.activeRoute(id);
+    this.ants.push({
+      id,
+      x: this.food.x + rand(-16, 16),
+      y: this.food.y + rand(-16, 16),
+      heading: this.angleTo(route[route.length - 2], this.food) + rand(-0.35, 0.35),
+      speed: rand(25, 34),
+      mode: "return",
+      routeIndex: route.length - 2,
+      memoryHeading: this.angleTo(route[route.length - 2], this.food),
+      cargoSize: rand(10, 15),
+      cargoValue: 130,
       washedTtl: 0,
       wiggle: Math.random() * TAU
     });

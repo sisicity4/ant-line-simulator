@@ -41,6 +41,7 @@ export class HudController {
           <span>スコア <strong data-score>0</strong></span>
           <span>運んだかけら <strong data-food>0</strong></span>
           <span>アリ <strong data-ants>0</strong></span>
+          <span>大物 <strong data-cargo>0</strong></span>
           <span>連鎖 <strong data-combo>0</strong></span>
         </div>
       </div>
@@ -137,6 +138,7 @@ export class HudController {
     this.setText("[data-score]", this.stats.score.toString());
     this.setText("[data-food]", this.stats.deliveredFood.toString());
     this.setText("[data-ants]", this.stats.activeAnts.toString());
+    this.setText("[data-cargo]", this.stats.activeCargo.toString());
     this.setText("[data-combo]", this.stats.combo.toString());
     this.setText("[data-integrity]", `${this.stats.trailIntegrity}%`);
     this.setText("[data-challenge]", this.stats.challengeText);

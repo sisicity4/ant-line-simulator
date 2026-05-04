@@ -16,6 +16,8 @@ export interface Ant {
   mode: AntMode;
   routeIndex: number;
   memoryHeading: number;
+  cargoSize: number;
+  cargoValue: number;
   washedTtl: number;
   wiggle: number;
 }
@@ -35,6 +37,7 @@ export interface SimulationStats {
   deliveredFood: number;
   trailIntegrity: number;
   activeAnts: number;
+  activeCargo: number;
   selectedTool: ToolKind;
   mapName: string;
   challengeText: string;
