@@ -14,6 +14,7 @@ export interface Ant {
   heading: number;
   speed: number;
   mode: AntMode;
+  routeIndex: number;
   memoryHeading: number;
   wiggle: number;
 }
@@ -34,6 +35,7 @@ export interface SimulationStats {
   trailIntegrity: number;
   activeAnts: number;
   selectedTool: ToolKind;
+  mapName: string;
 }
 
 export interface ToolDefinition {
@@ -42,4 +44,34 @@ export interface ToolDefinition {
   icon: string;
   radius: number;
   cooldownMs: number;
+}
+
+export type TerrainKind = "hill" | "river" | "plaza" | "root";
+
+export interface TerrainPatch {
+  kind: TerrainKind;
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  rotation?: number;
+  blocksAnts: boolean;
+}
+
+export interface RouteBranch {
+  points: Vec2[];
+  weight: number;
+}
+
+export interface MapPreset {
+  id: string;
+  name: string;
+  description: string;
+  background: number;
+  nest: Vec2;
+  food: Vec2;
+  route: Vec2[];
+  branches: RouteBranch[];
+  terrain: TerrainPatch[];
+  scatterSeed: number;
 }

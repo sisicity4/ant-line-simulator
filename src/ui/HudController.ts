@@ -1,8 +1,10 @@
-import type { SimulationStats, ToolDefinition, ToolKind } from "../simulation/types";
+import type { MapPreset, SimulationStats, ToolDefinition, ToolKind } from "../simulation/types";
 
 interface HudOptions {
   tools: ToolDefinition[];
+  maps: MapPreset[];
   onToolSelect: (tool: ToolKind) => void;
+  onMapSelect: (mapId: string) => void;
   onReset: () => void;
 }
 
@@ -41,6 +43,17 @@ export class HudController {
           <span>アリ <strong data-ants>0</strong></span>
         </div>
       </div>
+      <div class="hud map-dock" role="toolbar" aria-label="マップ">
+        ${this.options.maps
+          .map(
+            (map) => `
+              <button class="map-button" data-map="${map.id}" title="${map.description}" aria-label="${map.name}">
+                ${map.name}
+              </button>
+            `
+          )
+          .join("")}
+      </div>
       <div class="hud tool-dock" role="toolbar" aria-label="道具">
         ${this.options.tools
           .map(
@@ -66,6 +79,12 @@ export class HudController {
         this.options?.onToolSelect(tool);
       });
     }
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>("[data-map]")) {
+      button.addEventListener("click", () => {
+        const mapId = button.dataset.map;
+        if (mapId) this.options?.onMapSelect(mapId);
+      });
+    }
     this.root.querySelector<HTMLButtonElement>("[data-reset]")?.addEventListener("click", () => this.options?.onReset());
   }
 
@@ -83,6 +102,9 @@ export class HudController {
     if (!this.stats) return;
     for (const button of this.root.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
       button.classList.toggle("is-active", button.dataset.tool === this.stats.selectedTool);
+    }
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>("[data-map]")) {
+      button.classList.toggle("is-active", button.textContent?.trim() === this.stats.mapName);
     }
   }
 

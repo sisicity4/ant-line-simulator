@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { AntColonySimulation, TOOL_DEFINITIONS } from "../simulation/AntColonySimulation";
 import type { HudController } from "../ui/HudController";
-import type { PlacedObject, ToolKind } from "../simulation/types";
+import type { MapPreset, PlacedObject, TerrainPatch, ToolKind, Vec2 } from "../simulation/types";
 
 export class GameScene extends Phaser.Scene {
   private readonly simulation = new AntColonySimulation();
@@ -28,7 +28,12 @@ export class GameScene extends Phaser.Scene {
     this.drawGround();
     this.hud.mount({
       tools: TOOL_DEFINITIONS,
+      maps: this.simulation.maps,
       onToolSelect: (tool) => this.simulation.setTool(tool),
+      onMapSelect: (mapId) => {
+        this.simulation.setMap(mapId);
+        this.drawGround();
+      },
       onReset: () => this.simulation.reset()
     });
 
@@ -58,30 +63,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawGround(): void {
+    const map = this.simulation.map;
     this.ground.clear();
-    this.ground.fillStyle(0xc8bea6, 1);
+    this.ground.fillStyle(map.background, 1);
     this.ground.fillRect(0, 0, this.simulation.width, this.simulation.height);
 
-    for (let i = 0; i < 130; i += 1) {
-      const x = Math.random() * this.simulation.width;
-      const y = Math.random() * this.simulation.height;
+    for (let i = 0; i < 180; i += 1) {
+      const x = seededRange(map.scatterSeed, i * 2, 0, this.simulation.width);
+      const y = seededRange(map.scatterSeed, i * 2 + 1, 0, this.simulation.height);
       const color = i % 3 === 0 ? 0xb6aa91 : i % 3 === 1 ? 0xd4c9b1 : 0xaeb18f;
       this.ground.fillStyle(color, 0.24);
-      this.ground.fillCircle(x, y, 1 + Math.random() * 2.2);
+      this.ground.fillCircle(x, y, 1 + seededRange(map.scatterSeed, i + 400, 0, 2.2));
     }
 
-    this.ground.lineStyle(2, 0x9d927d, 0.24);
-    const path = new Phaser.Curves.Spline([
-      110,
-      385,
-      280,
-      300,
-      520,
-      365,
-      835,
-      282
-    ]);
-    path.draw(this.ground, 48);
+    this.drawTerrain(map);
+    this.drawMapRoutes(map);
 
     this.ground.fillStyle(0x84725f, 1);
     this.ground.fillCircle(this.simulation.nest.x, this.simulation.nest.y, 31);
@@ -95,6 +91,84 @@ export class GameScene extends Phaser.Scene {
       const angle = (i / 9) * Math.PI * 2;
       this.ground.fillCircle(this.simulation.food.x + Math.cos(angle) * 25, this.simulation.food.y + Math.sin(angle) * 15, 4);
     }
+  }
+
+  private drawMapRoutes(map: MapPreset): void {
+    this.ground.lineStyle(2, 0x8f826d, 0.22);
+    this.drawSpline(map.route, 56);
+    this.ground.lineStyle(2, 0x738065, 0.13);
+    for (const branch of map.branches) {
+      this.drawSpline(branch.points, 44);
+    }
+
+    if (map.id === "scramble") {
+      this.ground.lineStyle(5, 0xe7dfc9, 0.32);
+      const stripes = [
+        [
+          { x: 346, y: 284 },
+          { x: 618, y: 404 }
+        ],
+        [
+          { x: 344, y: 424 },
+          { x: 620, y: 266 }
+        ],
+        [
+          { x: 438, y: 210 },
+          { x: 490, y: 496 }
+        ],
+        [
+          { x: 286, y: 356 },
+          { x: 676, y: 350 }
+        ]
+      ];
+      for (const stripe of stripes) {
+        this.ground.lineBetween(stripe[0].x, stripe[0].y, stripe[1].x, stripe[1].y);
+      }
+    }
+  }
+
+  private drawSpline(points: Vec2[], divisions: number): void {
+    const path = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
+    path.draw(this.ground, divisions);
+  }
+
+  private drawTerrain(map: MapPreset): void {
+    for (const patch of map.terrain) {
+      if (patch.kind === "plaza") {
+        this.drawRotatedEllipse(patch, 0xd8d0ba, 0.42);
+        this.ground.lineStyle(2, 0xefe8d6, 0.25);
+        this.strokeRotatedEllipse(patch);
+      }
+      if (patch.kind === "hill") {
+        this.drawRotatedEllipse(patch, 0x8d9273, 0.58);
+        this.drawRotatedEllipse({ ...patch, rx: patch.rx * 0.56, ry: patch.ry * 0.5 }, 0xa8aa86, 0.46);
+      }
+      if (patch.kind === "river") {
+        this.drawRotatedEllipse(patch, 0x8ca4a6, 0.5);
+        this.drawRotatedEllipse({ ...patch, rx: patch.rx * 0.92, ry: patch.ry * 0.55 }, 0xb6cac7, 0.32);
+      }
+      if (patch.kind === "root") {
+        this.drawRotatedEllipse(patch, 0x746b58, 0.42);
+        this.drawRotatedEllipse({ ...patch, rx: patch.rx * 0.75, ry: patch.ry * 0.42 }, 0x94876f, 0.28);
+      }
+    }
+  }
+
+  private drawRotatedEllipse(patch: TerrainPatch, color: number, alpha: number): void {
+    this.ground.save();
+    this.ground.translateCanvas(patch.x, patch.y);
+    this.ground.rotateCanvas(patch.rotation ?? 0);
+    this.ground.fillStyle(color, alpha);
+    this.ground.fillEllipse(0, 0, patch.rx * 2, patch.ry * 2);
+    this.ground.restore();
+  }
+
+  private strokeRotatedEllipse(patch: TerrainPatch): void {
+    this.ground.save();
+    this.ground.translateCanvas(patch.x, patch.y);
+    this.ground.rotateCanvas(patch.rotation ?? 0);
+    this.ground.strokeEllipse(0, 0, patch.rx * 2, patch.ry * 2);
+    this.ground.restore();
   }
 
   private renderWorld(): void {
@@ -198,4 +272,9 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => ring.destroy()
     });
   }
+}
+
+function seededRange(seed: number, salt: number, min: number, max: number): number {
+  const raw = Math.sin((seed + salt * 101.13) * 12.9898) * 43758.5453;
+  return min + (raw - Math.floor(raw)) * (max - min);
 }

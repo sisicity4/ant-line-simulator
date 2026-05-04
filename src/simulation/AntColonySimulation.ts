@@ -1,10 +1,9 @@
 import { PheromoneGrid } from "./PheromoneGrid";
-import type { Ant, PlacedObject, SimulationStats, ToolDefinition, ToolKind, Vec2 } from "./types";
+import { MAP_PRESETS } from "./MapPresets";
+import type { Ant, MapPreset, PlacedObject, SimulationStats, TerrainPatch, ToolDefinition, ToolKind, Vec2 } from "./types";
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
-const NEST: Vec2 = { x: 150, y: 326 };
-const FOOD: Vec2 = { x: 800, y: 318 };
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   { kind: "pebble", label: "小石", icon: "●", radius: 28, cooldownMs: 160 },
@@ -18,13 +17,13 @@ const TAU = Math.PI * 2;
 export class AntColonySimulation {
   readonly width = WORLD_WIDTH;
   readonly height = WORLD_HEIGHT;
-  readonly nest = NEST;
-  readonly food = FOOD;
+  readonly maps = MAP_PRESETS;
   readonly pheromones = new PheromoneGrid(WORLD_WIDTH, WORLD_HEIGHT, 10);
   readonly ants: Ant[] = [];
   readonly objects: PlacedObject[] = [];
 
   selectedTool: ToolKind = "pebble";
+  map: MapPreset = MAP_PRESETS[0];
   score = 0;
   deliveredFood = 0;
 
@@ -36,6 +35,14 @@ export class AntColonySimulation {
     for (let i = 0; i < 52; i += 1) {
       this.spawnAnt(Math.random() * TAU);
     }
+  }
+
+  get nest(): Vec2 {
+    return this.map.nest;
+  }
+
+  get food(): Vec2 {
+    return this.map.food;
   }
 
   reset(): void {
@@ -52,12 +59,22 @@ export class AntColonySimulation {
     }
   }
 
+  setMap(mapId: string): void {
+    const nextMap = this.maps.find((map) => map.id === mapId);
+    if (!nextMap || nextMap.id === this.map.id) return;
+    this.map = nextMap;
+    this.reset();
+  }
+
   setTool(tool: ToolKind): void {
     this.selectedTool = tool;
   }
 
   placeTool(x: number, y: number, kind = this.selectedTool): boolean {
-    if (Math.hypot(x - NEST.x, y - NEST.y) < 58 || Math.hypot(x - FOOD.x, y - FOOD.y) < 58) {
+    if (Math.hypot(x - this.nest.x, y - this.nest.y) < 58 || Math.hypot(x - this.food.x, y - this.food.y) < 58) {
+      return false;
+    }
+    if (this.terrainAt(x, y)?.blocksAnts) {
       return false;
     }
 
@@ -84,7 +101,7 @@ export class AntColonySimulation {
     this.spawnTimer += dt;
     if (this.spawnTimer > 0.65 && this.ants.length < 95) {
       this.spawnTimer = 0;
-      this.spawnAnt(this.angleTo(FOOD, NEST) + rand(-0.45, 0.45));
+      this.spawnAnt(this.angleTo(this.routeTarget(this.map.route, 1), this.nest) + rand(-0.45, 0.45));
     }
 
     this.pheromones.step(dt * 60);
@@ -100,12 +117,14 @@ export class AntColonySimulation {
       deliveredFood: this.deliveredFood,
       trailIntegrity: this.calculateTrailIntegrity(),
       activeAnts: this.ants.length,
-      selectedTool: this.selectedTool
+      selectedTool: this.selectedTool,
+      mapName: this.map.name
     };
   }
 
   private stepAnt(ant: Ant, dt: number): void {
-    const target = ant.mode === "forage" ? FOOD : NEST;
+    const route = this.activeRoute(ant.id);
+    const target = this.routeTarget(route, ant.routeIndex);
     const desiredField = ant.mode === "forage" ? this.pheromones.food : this.pheromones.home;
     const deposit = ant.mode === "forage" ? "home" : "food";
     const lookAhead = 20;
@@ -125,6 +144,7 @@ export class AntColonySimulation {
     ant.speed = clamp(ant.speed, 20, 62);
 
     this.avoidObjects(ant, dt);
+    this.avoidTerrain(ant, dt);
 
     ant.x += Math.cos(ant.heading) * ant.speed * dt;
     ant.y += Math.sin(ant.heading) * ant.speed * dt;
@@ -134,10 +154,19 @@ export class AntColonySimulation {
     else this.pheromones.addFood(ant.x, ant.y, 0.038);
 
     if (Math.hypot(ant.x - target.x, ant.y - target.y) < 28) {
-      ant.mode = ant.mode === "forage" ? "return" : "forage";
-      ant.memoryHeading = this.angleTo(ant.mode === "forage" ? FOOD : NEST, ant);
-      ant.heading = wrapAngle(ant.heading + Math.PI + rand(-0.4, 0.4));
-      if (ant.mode === "forage") {
+      if (ant.mode === "forage" && ant.routeIndex < route.length - 1) {
+        ant.routeIndex += 1;
+        ant.memoryHeading = this.angleTo(this.routeTarget(route, ant.routeIndex), ant);
+      } else if (ant.mode === "return" && ant.routeIndex > 0) {
+        ant.routeIndex -= 1;
+        ant.memoryHeading = this.angleTo(this.routeTarget(route, ant.routeIndex), ant);
+      } else {
+        ant.mode = ant.mode === "forage" ? "return" : "forage";
+        ant.routeIndex = ant.mode === "forage" ? 1 : route.length - 2;
+        ant.memoryHeading = this.angleTo(this.routeTarget(route, ant.routeIndex), ant);
+        ant.heading = wrapAngle(ant.heading + Math.PI + rand(-0.4, 0.4));
+      }
+      if (Math.hypot(ant.x - this.nest.x, ant.y - this.nest.y) < 32 && ant.mode === "forage") {
         this.deliveredFood += 1;
         this.score += 18;
         this.pheromones.addFood(ant.x, ant.y, 0.8);
@@ -162,6 +191,21 @@ export class AntColonySimulation {
     }
   }
 
+  private avoidTerrain(ant: Ant, dt: number): void {
+    for (const patch of this.map.terrain) {
+      if (!patch.blocksAnts) continue;
+      const distance = normalizedEllipseDistance(ant, patch);
+      if (distance > 1.22) continue;
+      const away = Math.atan2(ant.y - patch.y, ant.x - patch.x);
+      const strength = (1.22 - distance) * (patch.kind === "river" ? 3.7 : 4.6);
+      ant.heading = wrapAngle(ant.heading + signedAngle(ant.heading, away) * strength * dt);
+      if (distance < 0.92) {
+        ant.speed *= 0.86;
+        ant.heading = wrapAngle(ant.heading + rand(-0.65, 0.65) * dt * 5);
+      }
+    }
+  }
+
   private stepObjects(dt: number): void {
     for (let i = this.objects.length - 1; i >= 0; i -= 1) {
       const object = this.objects[i];
@@ -178,12 +222,13 @@ export class AntColonySimulation {
   private calculateTrailIntegrity(): number {
     let aligned = 0;
     let counted = 0;
-    const routeAngle = Math.atan2(FOOD.y - NEST.y, FOOD.x - NEST.x);
+    const route = this.map.route;
     for (const ant of this.ants) {
-      const nearRoute = Math.abs(crossTrackDistance(NEST, FOOD, ant)) < 95;
+      const segment = nearestSegment(route, ant);
+      const nearRoute = segment.distance < 88;
       if (!nearRoute) continue;
       counted += 1;
-      const expected = ant.mode === "forage" ? routeAngle : wrapAngle(routeAngle + Math.PI);
+      const expected = ant.mode === "forage" ? segment.angle : wrapAngle(segment.angle + Math.PI);
       const difference = Math.abs(signedAngle(ant.heading, expected));
       if (difference < 0.55) aligned += 1;
     }
@@ -191,14 +236,17 @@ export class AntColonySimulation {
   }
 
   private spawnAnt(heading: number): void {
+    const id = this.nextAntId++;
+    const route = this.activeRoute(id);
     this.ants.push({
-      id: this.nextAntId++,
-      x: NEST.x + rand(-18, 18),
-      y: NEST.y + rand(-18, 18),
+      id,
+      x: this.nest.x + rand(-18, 18),
+      y: this.nest.y + rand(-18, 18),
       heading,
       speed: rand(28, 45),
       mode: "forage",
-      memoryHeading: this.angleTo(FOOD, NEST),
+      routeIndex: 1,
+      memoryHeading: this.angleTo(this.routeTarget(route, 1), this.nest),
       wiggle: Math.random() * TAU
     });
   }
@@ -206,6 +254,25 @@ export class AntColonySimulation {
   private sampleField(field: Float32Array, x: number, y: number): number {
     if (field === this.pheromones.food) return this.pheromones.sampleFood(x, y);
     return this.pheromones.sampleHome(x, y);
+  }
+
+  private routeTarget(route: Vec2[], routeIndex: number): Vec2 {
+    const index = clamp(Math.round(routeIndex), 0, route.length - 1);
+    return route[index];
+  }
+
+  private activeRoute(antId: number): Vec2[] {
+    const roll = seededUnit(antId + this.map.scatterSeed * 97);
+    let threshold = 0;
+    for (const branch of this.map.branches) {
+      threshold += branch.weight;
+      if (roll < threshold) return branch.points;
+    }
+    return this.map.route;
+  }
+
+  private terrainAt(x: number, y: number): TerrainPatch | undefined {
+    return this.map.terrain.find((patch) => normalizedEllipseDistance({ x, y }, patch) <= 1);
   }
 
   private keepInWorld(ant: Ant): void {
@@ -228,6 +295,33 @@ function crossTrackDistance(a: Vec2, b: Vec2, p: Vec2): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   return ((p.x - a.x) * dy - (p.y - a.y) * dx) / Math.hypot(dx, dy);
+}
+
+function nearestSegment(route: Vec2[], point: Vec2): { distance: number; angle: number } {
+  let best = { distance: Number.POSITIVE_INFINITY, angle: 0 };
+  for (let i = 0; i < route.length - 1; i += 1) {
+    const a = route[i];
+    const b = route[i + 1];
+    const distance = Math.abs(crossTrackDistance(a, b, point));
+    if (distance < best.distance) {
+      best = { distance, angle: Math.atan2(b.y - a.y, b.x - a.x) };
+    }
+  }
+  return best;
+}
+
+function normalizedEllipseDistance(point: Vec2, patch: TerrainPatch): number {
+  const rotation = -(patch.rotation ?? 0);
+  const dx = point.x - patch.x;
+  const dy = point.y - patch.y;
+  const localX = Math.cos(rotation) * dx - Math.sin(rotation) * dy;
+  const localY = Math.sin(rotation) * dx + Math.cos(rotation) * dy;
+  return Math.hypot(localX / patch.rx, localY / patch.ry);
+}
+
+function seededUnit(seed: number): number {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
 }
 
 function rand(min: number, max: number): number {

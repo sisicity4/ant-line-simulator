@@ -137,7 +137,20 @@ canvas {
   padding: 9px;
 }
 
+.map-dock {
+  position: absolute;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100vw - 32px));
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+}
+
 .tool-button,
+.map-button,
 .reset-button {
   min-height: 42px;
   border: 0;
@@ -156,6 +169,13 @@ canvas {
   padding: 7px 9px;
 }
 
+.map-button {
+  min-width: 130px;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .tool-icon {
   display: grid;
   place-items: center;
@@ -165,7 +185,8 @@ canvas {
   font-weight: 800;
 }
 
-.tool-button.is-active {
+.tool-button.is-active,
+.map-button.is-active {
   background: #f2ead4;
   outline: 2px solid rgba(106, 128, 88, 0.65);
 }
@@ -223,6 +244,18 @@ canvas {
     width: min(396px, calc(100vw - 20px));
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .map-dock {
+    top: 92px;
+    width: min(396px, calc(100vw - 20px));
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .map-button {
+    min-width: 116px;
+    font-size: 12px;
   }
 
   .tool-button {
