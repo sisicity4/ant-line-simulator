@@ -139,7 +139,7 @@ canvas {
 
 .map-dock {
   position: absolute;
-  top: 88px;
+  top: 150px;
   left: 50%;
   transform: translateX(-50%);
   width: min(620px, calc(100vw - 32px));
@@ -147,6 +147,26 @@ canvas {
   justify-content: center;
   gap: 8px;
   padding: 8px;
+}
+
+.play-prompt {
+  position: absolute;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100vw - 32px));
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.play-prompt strong {
+  color: #59694b;
+  white-space: nowrap;
 }
 
 .tool-button,
@@ -247,10 +267,19 @@ canvas {
   }
 
   .map-dock {
-    top: 92px;
+    top: 154px;
     width: min(396px, calc(100vw - 20px));
     overflow-x: auto;
     justify-content: flex-start;
+  }
+
+  .play-prompt {
+    top: 92px;
+    width: min(396px, calc(100vw - 20px));
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 52px;
   }
 
   .map-button {

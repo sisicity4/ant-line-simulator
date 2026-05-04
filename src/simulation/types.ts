@@ -36,6 +36,9 @@ export interface SimulationStats {
   activeAnts: number;
   selectedTool: ToolKind;
   mapName: string;
+  challengeText: string;
+  reactionText: string;
+  combo: number;
 }
 
 export interface ToolDefinition {

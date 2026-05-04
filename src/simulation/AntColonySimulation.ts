@@ -26,14 +26,19 @@ export class AntColonySimulation {
   map: MapPreset = MAP_PRESETS[0];
   score = 0;
   deliveredFood = 0;
+  combo = 0;
 
   private nextAntId = 1;
   private nextObjectId = 1;
   private spawnTimer = 0;
+  private hasInteracted = false;
+  private challengePhase: "disturb" | "recover" = "disturb";
+  private reactionText = "行列の流れを見て、効きそうな場所に置いてみよう";
+  private reactionTimer = 3;
 
   constructor() {
     for (let i = 0; i < 52; i += 1) {
-      this.spawnAnt(Math.random() * TAU);
+      this.spawnAnt(this.initialHeading());
     }
   }
 
@@ -53,9 +58,14 @@ export class AntColonySimulation {
     this.pheromones.disruption.fill(0);
     this.score = 0;
     this.deliveredFood = 0;
+    this.combo = 0;
     this.spawnTimer = 0;
+    this.hasInteracted = false;
+    this.challengePhase = "disturb";
+    this.reactionText = "行列の流れを見て、効きそうな場所に置いてみよう";
+    this.reactionTimer = 3;
     for (let i = 0; i < 52; i += 1) {
-      this.spawnAnt(Math.random() * TAU);
+      this.spawnAnt(this.initialHeading());
     }
   }
 
@@ -79,6 +89,7 @@ export class AntColonySimulation {
     }
 
     const definition = TOOL_DEFINITIONS.find((tool) => tool.kind === kind)!;
+    const nearbyAnts = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < definition.radius * 2.2).length;
     const ttl = kind === "finger" ? 6 : kind === "water" ? 10 : 16;
     this.objects.push({
       id: this.nextObjectId++,
@@ -92,7 +103,12 @@ export class AntColonySimulation {
 
     const disruption = kind === "water" ? 1.1 : kind === "finger" ? 0.86 : 0.45;
     this.pheromones.addDisruption(x, y, definition.radius * 1.15, disruption);
-    this.score += kind === "finger" ? 2 : 5;
+    this.hasInteracted = true;
+    this.combo = nearbyAnts > 0 ? Math.min(9, this.combo + 1) : 0;
+    const baseScore = kind === "finger" ? 2 : 5;
+    const impactScore = nearbyAnts * (kind === "water" ? 4 : kind === "leaf" ? 3 : 2);
+    this.score += baseScore + impactScore + this.combo * 2;
+    this.setReaction(nearbyAnts > 0 ? `${nearbyAnts}匹が迷った。いい邪魔。` : "そこは少し静か。流れの近くを狙うと効く。");
     return true;
   }
 
@@ -109,6 +125,7 @@ export class AntColonySimulation {
     for (const ant of this.ants) {
       this.stepAnt(ant, dt);
     }
+    this.stepChallenge(dt);
   }
 
   getStats(): SimulationStats {
@@ -118,7 +135,10 @@ export class AntColonySimulation {
       trailIntegrity: this.calculateTrailIntegrity(),
       activeAnts: this.ants.length,
       selectedTool: this.selectedTool,
-      mapName: this.map.name
+      mapName: this.map.name,
+      challengeText: this.challengeText(),
+      reactionText: this.reactionText,
+      combo: this.combo
     };
   }
 
@@ -169,9 +189,44 @@ export class AntColonySimulation {
       if (Math.hypot(ant.x - this.nest.x, ant.y - this.nest.y) < 32 && ant.mode === "forage") {
         this.deliveredFood += 1;
         this.score += 18;
+        if (this.challengePhase === "recover" && this.hasInteracted) {
+          this.score += 6;
+          this.setReaction("行列が戻ってきた。観察ボーナス。");
+        }
         this.pheromones.addFood(ant.x, ant.y, 0.8);
       }
     }
+  }
+
+  private stepChallenge(dt: number): void {
+    this.reactionTimer -= dt;
+    if (this.reactionTimer <= 0 && this.reactionText !== this.challengeText()) {
+      this.reactionText = this.challengeText();
+    }
+    if (!this.hasInteracted) return;
+
+    const integrity = this.calculateTrailIntegrity();
+    if (this.challengePhase === "disturb" && integrity <= 38) {
+      this.challengePhase = "recover";
+      this.score += 60;
+      this.setReaction("行列がほどけた。今度は立て直しを眺めよう。");
+    } else if (this.challengePhase === "recover" && integrity >= 62) {
+      this.challengePhase = "disturb";
+      this.score += 90;
+      this.combo = Math.min(9, this.combo + 2);
+      this.setReaction("立て直し成功。もう一度、別の場所を試そう。");
+    }
+  }
+
+  private challengeText(): string {
+    if (!this.hasInteracted) return "お題: 行列の肩をそっと崩す";
+    if (this.challengePhase === "disturb") return "お題: 安定度を38%以下にする";
+    return "お題: 手を止めて62%以上まで戻す";
+  }
+
+  private setReaction(text: string): void {
+    this.reactionText = text;
+    this.reactionTimer = 2.8;
   }
 
   private avoidObjects(ant: Ant, dt: number): void {
@@ -249,6 +304,10 @@ export class AntColonySimulation {
       memoryHeading: this.angleTo(this.routeTarget(route, 1), this.nest),
       wiggle: Math.random() * TAU
     });
+  }
+
+  private initialHeading(): number {
+    return this.angleTo(this.routeTarget(this.map.route, 1), this.nest) + rand(-0.35, 0.35);
   }
 
   private sampleField(field: Float32Array, x: number, y: number): number {

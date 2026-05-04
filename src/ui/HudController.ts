@@ -41,7 +41,12 @@ export class HudController {
           <span>スコア <strong data-score>0</strong></span>
           <span>運んだかけら <strong data-food>0</strong></span>
           <span>アリ <strong data-ants>0</strong></span>
+          <span>連鎖 <strong data-combo>0</strong></span>
         </div>
+      </div>
+      <div class="hud play-prompt">
+        <strong data-challenge>お題</strong>
+        <span data-reaction>行列の流れを見て、効きそうな場所に置いてみよう</span>
       </div>
       <div class="hud map-dock" role="toolbar" aria-label="マップ">
         ${this.options.maps
@@ -93,7 +98,10 @@ export class HudController {
     this.setText("[data-score]", this.stats.score.toString());
     this.setText("[data-food]", this.stats.deliveredFood.toString());
     this.setText("[data-ants]", this.stats.activeAnts.toString());
+    this.setText("[data-combo]", this.stats.combo.toString());
     this.setText("[data-integrity]", `${this.stats.trailIntegrity}%`);
+    this.setText("[data-challenge]", this.stats.challengeText);
+    this.setText("[data-reaction]", this.stats.reactionText);
     const meter = this.root.querySelector<HTMLSpanElement>("[data-meter]");
     if (meter) meter.style.width = `${this.stats.trailIntegrity}%`;
   }
