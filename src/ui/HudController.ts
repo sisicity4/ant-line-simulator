@@ -72,10 +72,40 @@ export class HudController {
           .join("")}
       </div>
       <button class="reset-button" type="button" data-reset>リセット</button>
-      <details class="research-note">
-        <summary>研究メモ</summary>
-        <p>フェロモン濃度差への旋回、ランダム探索、蒸発、経路記憶を簡略化したモデルです。</p>
-      </details>
+      <button class="research-button" type="button" data-open-research>生態ノート</button>
+      <section class="research-page is-hidden" aria-label="アリの生態ノート" data-research-page>
+        <div class="research-panel">
+          <button class="research-close" type="button" aria-label="生態ノートを閉じる" data-close-research>×</button>
+          <p class="research-kicker">Ant Notes</p>
+          <h1>アリの行列は、匂いと記憶でできている</h1>
+          <div class="research-grid">
+            <article>
+              <h2>1. アリは社会性昆虫</h2>
+              <p>コロニーは個体の集まりではなく、女王や働きアリなどの分業で動く共同体です。このゲームでは、その中の「食べ物を探して運ぶ働きアリ」に注目しています。</p>
+            </article>
+            <article>
+              <h2>2. 行列の正体はフェロモン</h2>
+              <p>多くのアリは、食べ物へ向かう道に化学的な匂いの印を残します。後続のアリはその印をたどり、成功した道ほどさらに強くなります。</p>
+            </article>
+            <article>
+              <h2>3. でも、ただのロボットではない</h2>
+              <p>研究では、アリがフェロモンだけでなく経路の記憶も使うことが示されています。単純な道では記憶を優先し、複雑な分岐ではフェロモンが助けになります。</p>
+            </article>
+            <article>
+              <h2>4. このゲームの簡略モデル</h2>
+              <p>アリは前方左右のフェロモン濃度差を比べて少し曲がり、そこにランダム探索と地形回避を混ぜています。水ポンプや謎は、実験で観察される「道しるべの乱れ」を遊び向けに誇張した表現です。</p>
+            </article>
+          </div>
+          <div class="source-list">
+            <span>出典</span>
+            <a href="https://www.britannica.com/animal/ant" target="_blank" rel="noreferrer">Britannica: Ant</a>
+            <a href="https://www.britannica.com/science/pheromone" target="_blank" rel="noreferrer">Britannica: Pheromone</a>
+            <a href="https://arxiv.org/abs/1201.5827" target="_blank" rel="noreferrer">Perna et al. 2012</a>
+            <a href="https://pubmed.ncbi.nlm.nih.gov/22972897/" target="_blank" rel="noreferrer">Czaczkes et al. 2013</a>
+            <a href="https://pubs.usgs.gov/publication/70033166" target="_blank" rel="noreferrer">Suckling et al. 2008</a>
+          </div>
+        </div>
+      </section>
     `;
 
     for (const button of this.root.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
@@ -91,6 +121,15 @@ export class HudController {
       });
     }
     this.root.querySelector<HTMLButtonElement>("[data-reset]")?.addEventListener("click", () => this.options?.onReset());
+    this.root.querySelector<HTMLButtonElement>("[data-open-research]")?.addEventListener("click", () => this.setResearchOpen(true));
+    this.root.querySelector<HTMLButtonElement>("[data-close-research]")?.addEventListener("click", () => this.setResearchOpen(false));
+    this.root.querySelector<HTMLElement>("[data-research-page]")?.addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) this.setResearchOpen(false);
+    });
+  }
+
+  private setResearchOpen(open: boolean): void {
+    this.root.querySelector<HTMLElement>("[data-research-page]")?.classList.toggle("is-hidden", !open);
   }
 
   private renderStats(): void {
