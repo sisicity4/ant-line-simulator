@@ -10,7 +10,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   { kind: "leaf", label: "葉っぱ", icon: "◆", radius: 42, cooldownMs: 210 },
   { kind: "finger", label: "指跡", icon: "⌒", radius: 34, cooldownMs: 35 },
   { kind: "water", label: "水滴", icon: "◌", radius: 46, cooldownMs: 260 },
-  { kind: "pump", label: "水ポンプ", icon: "↯", radius: 82, cooldownMs: 780 }
+  { kind: "pump", label: "水ポンプ", icon: "↯", radius: 82, cooldownMs: 780 },
+  { kind: "mystery", label: "謎", icon: "?", radius: 64, cooldownMs: 520 }
 ];
 
 const TAU = Math.PI * 2;
@@ -90,29 +91,37 @@ export class AntColonySimulation {
     }
 
     const definition = TOOL_DEFINITIONS.find((tool) => tool.kind === kind)!;
-    const nearbyAnts = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < definition.radius * 2.2).length;
-    const ttl = kind === "finger" ? 6 : kind === "water" ? 10 : kind === "pump" ? 2.4 : 16;
+    const mysteryEffect = kind === "mystery" ? this.pickMysteryEffect(x, y) : undefined;
+    const effectKind = mysteryEffect ?? kind;
+    const effectRadius = effectKind === "pump" ? 82 : effectKind === "water" ? 46 : effectKind === "leaf" ? 42 : effectKind === "finger" ? 34 : definition.radius;
+    const nearbyAnts = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < effectRadius * 2.2).length;
+    const ttl = kind === "mystery" ? 2.8 : effectKind === "finger" ? 6 : effectKind === "water" ? 10 : effectKind === "pump" ? 2.4 : 16;
     this.objects.push({
       id: this.nextObjectId++,
       kind,
       x,
       y,
-      radius: definition.radius,
+      radius: effectRadius,
       ttl,
       maxTtl: ttl
     });
 
-    const disruption = kind === "pump" ? 1.8 : kind === "water" ? 1.1 : kind === "finger" ? 0.86 : 0.45;
-    this.pheromones.addDisruption(x, y, definition.radius * 1.15, disruption);
-    if (kind === "pump") {
-      this.washAnts(x, y, definition.radius * 2.15);
+    const disruption = effectKind === "pump" ? 1.8 : effectKind === "water" ? 1.1 : effectKind === "finger" ? 0.86 : effectKind === "leaf" ? 0.62 : 0.45;
+    this.pheromones.addDisruption(x, y, effectRadius * 1.15, disruption);
+    if (effectKind === "pump") {
+      this.washAnts(x, y, effectRadius * 2.15);
+    } else if (effectKind === "leaf") {
+      this.turnNearbyAnts(x, y, effectRadius * 2.3, 1.35);
+    } else if (effectKind === "finger") {
+      this.turnNearbyAnts(x, y, effectRadius * 2.1, 2.2);
     }
     this.hasInteracted = true;
     this.combo = nearbyAnts > 0 ? Math.min(9, this.combo + 1) : 0;
-    const baseScore = kind === "finger" ? 2 : kind === "pump" ? 12 : 5;
-    const impactScore = nearbyAnts * (kind === "pump" ? 7 : kind === "water" ? 4 : kind === "leaf" ? 3 : 2);
+    const baseScore = effectKind === "finger" ? 2 : effectKind === "pump" ? 12 : kind === "mystery" ? 9 : 5;
+    const impactScore = nearbyAnts * (effectKind === "pump" ? 7 : effectKind === "water" ? 4 : effectKind === "leaf" ? 3 : 2);
     this.score += baseScore + impactScore + this.combo * 2;
-    if (kind === "pump" && nearbyAnts > 0) this.setReaction(`${nearbyAnts}匹がざっと流された。派手だけどすぐ立て直す。`);
+    if (kind === "mystery") this.setReaction(this.mysteryReaction(effectKind, nearbyAnts));
+    else if (effectKind === "pump" && nearbyAnts > 0) this.setReaction(`${nearbyAnts}匹がざっと流された。派手だけどすぐ立て直す。`);
     else this.setReaction(nearbyAnts > 0 ? `${nearbyAnts}匹が迷った。いい邪魔。` : "そこは少し静か。流れの近くを狙うと効く。");
     return true;
   }
@@ -215,12 +224,16 @@ export class AntColonySimulation {
     if (this.challengePhase === "disturb" && integrity <= 38) {
       this.challengePhase = "recover";
       this.score += 60;
-      this.setReaction("行列がほどけた。今度は立て直しを眺めよう。");
+      if (this.reactionTimer < 2.1) {
+        this.setReaction("行列がほどけた。今度は立て直しを眺めよう。");
+      }
     } else if (this.challengePhase === "recover" && integrity >= 62) {
       this.challengePhase = "disturb";
       this.score += 90;
       this.combo = Math.min(9, this.combo + 2);
-      this.setReaction("立て直し成功。もう一度、別の場所を試そう。");
+      if (this.reactionTimer < 2.1) {
+        this.setReaction("立て直し成功。もう一度、別の場所を試そう。");
+      }
     }
   }
 
@@ -268,6 +281,35 @@ export class AntColonySimulation {
       ant.memoryHeading = this.angleTo(this.routeTarget(this.activeRoute(ant.id), ant.routeIndex), ant);
       this.keepInWorld(ant);
     }
+  }
+
+  private turnNearbyAnts(x: number, y: number, radius: number, strength: number): void {
+    for (const ant of this.ants) {
+      const distance = Math.hypot(ant.x - x, ant.y - y);
+      if (distance > radius) continue;
+      const force = 1 - distance / radius;
+      ant.heading = wrapAngle(ant.heading + rand(-strength, strength) * (0.4 + force));
+      ant.speed = Math.max(ant.speed, 48 + force * 18);
+      ant.washedTtl = Math.max(ant.washedTtl, force * 0.45);
+    }
+  }
+
+  private pickMysteryEffect(x: number, y: number): ToolKind {
+    const nearby = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < 130).length;
+    const roll = Math.random();
+    if (nearby >= 10 && roll < 0.38) return "pump";
+    if (roll < 0.32) return "water";
+    if (roll < 0.58) return "leaf";
+    if (roll < 0.8) return "finger";
+    return "pebble";
+  }
+
+  private mysteryReaction(effectKind: ToolKind, nearbyAnts: number): string {
+    if (effectKind === "pump") return nearbyAnts > 0 ? `謎の水圧。${nearbyAnts}匹が流された。` : "謎の水しぶき。でも少し外れた。";
+    if (effectKind === "water") return nearbyAnts > 0 ? `謎の湿り気。${nearbyAnts}匹が足を止めた。` : "謎の湿り気だけが残った。";
+    if (effectKind === "leaf") return nearbyAnts > 0 ? `謎の葉っぱ。${nearbyAnts}匹の道がふさがった。` : "謎の葉っぱがひらり。";
+    if (effectKind === "finger") return nearbyAnts > 0 ? `謎のなぞり跡。${nearbyAnts}匹がぐるっと迷った。` : "謎の線だけが残った。";
+    return nearbyAnts > 0 ? `謎の小石。${nearbyAnts}匹が迂回した。` : "謎の小石。静かな場所に落ちた。";
   }
 
   private avoidTerrain(ant: Ant, dt: number): void {

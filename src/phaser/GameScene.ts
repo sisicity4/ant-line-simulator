@@ -210,6 +210,7 @@ export class GameScene extends Phaser.Scene {
       if (object.kind === "leaf") this.drawLeaf(object, alpha);
       if (object.kind === "water") this.drawWater(object, alpha);
       if (object.kind === "pump") this.drawPump(object, alpha);
+      if (object.kind === "mystery") this.drawMystery(object, alpha);
       if (object.kind === "finger") this.drawFinger(object, alpha);
     }
   }
@@ -277,6 +278,17 @@ export class GameScene extends Phaser.Scene {
     this.objectLayer.fillCircle(object.x - 10, object.y - 12, object.radius * 0.24);
   }
 
+  private drawMystery(object: PlacedObject, alpha: number): void {
+    this.objectLayer.fillStyle(0x7d7890, 0.18 * alpha);
+    this.objectLayer.fillCircle(object.x, object.y, object.radius * 0.92);
+    this.objectLayer.lineStyle(3, 0xe8e0ca, 0.5 * alpha);
+    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.48);
+    this.objectLayer.fillStyle(0x5d576a, 0.72 * alpha);
+    this.objectLayer.fillCircle(object.x, object.y - object.radius * 0.06, object.radius * 0.16);
+    this.objectLayer.fillStyle(0xe8e0ca, 0.78 * alpha);
+    this.objectLayer.fillCircle(object.x + object.radius * 0.05, object.y - object.radius * 0.1, object.radius * 0.04);
+  }
+
   private drawFinger(object: PlacedObject, alpha: number): void {
     this.objectLayer.fillStyle(0xb78f79, 0.18 * alpha);
     this.objectLayer.fillCircle(object.x, object.y, object.radius);
@@ -285,13 +297,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pulse(x: number, y: number, kind: ToolKind): void {
-    const color = kind === "pump" || kind === "water" ? 0x8ba6ad : kind === "leaf" ? 0x87936d : kind === "finger" ? 0xb78f79 : 0x8f897d;
+    const color = kind === "mystery" ? 0x7d7890 : kind === "pump" || kind === "water" ? 0x8ba6ad : kind === "leaf" ? 0x87936d : kind === "finger" ? 0xb78f79 : 0x8f897d;
     const ring = this.add.circle(x, y, 8).setStrokeStyle(2, color, 0.6).setFillStyle(color, 0.08);
     this.tweens.add({
       targets: ring,
-      radius: kind === "pump" ? 118 : 48,
+      radius: kind === "pump" ? 118 : kind === "mystery" ? 84 : 48,
       alpha: 0,
-      duration: kind === "pump" ? 520 : 360,
+      duration: kind === "pump" ? 520 : kind === "mystery" ? 460 : 360,
       ease: "Sine.easeOut",
       onComplete: () => ring.destroy()
     });

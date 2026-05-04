@@ -1,4 +1,4 @@
-export type ToolKind = "pebble" | "leaf" | "finger" | "water" | "pump";
+export type ToolKind = "pebble" | "leaf" | "finger" | "water" | "pump" | "mystery";
 
 export type AntMode = "forage" | "return";
 
