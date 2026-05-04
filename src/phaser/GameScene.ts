@@ -209,6 +209,7 @@ export class GameScene extends Phaser.Scene {
       if (object.kind === "pebble") this.drawPebble(object, alpha);
       if (object.kind === "leaf") this.drawLeaf(object, alpha);
       if (object.kind === "water") this.drawWater(object, alpha);
+      if (object.kind === "pump") this.drawPump(object, alpha);
       if (object.kind === "finger") this.drawFinger(object, alpha);
     }
   }
@@ -216,10 +217,14 @@ export class GameScene extends Phaser.Scene {
   private drawAnts(): void {
     this.antLayer.clear();
     for (const ant of this.simulation.ants) {
-      const color = ant.mode === "return" ? 0x51463d : 0x5f5549;
+      const color = ant.washedTtl > 0 ? 0x5f7278 : ant.mode === "return" ? 0x51463d : 0x5f5549;
       this.antLayer.save();
       this.antLayer.translateCanvas(ant.x, ant.y);
       this.antLayer.rotateCanvas(ant.heading);
+      if (ant.washedTtl > 0) {
+        this.antLayer.lineStyle(2, 0x9eb8ba, Math.min(0.5, ant.washedTtl * 0.28));
+        this.antLayer.lineBetween(-15, 0, -5, 0);
+      }
       this.antLayer.fillStyle(color, 0.9);
       this.antLayer.fillEllipse(0, 0, 9, 4.6);
       this.antLayer.fillStyle(0x73675a, 0.86);
@@ -253,6 +258,25 @@ export class GameScene extends Phaser.Scene {
     this.objectLayer.strokeCircle(object.x - 5, object.y - 5, object.radius * 0.45);
   }
 
+  private drawPump(object: PlacedObject, alpha: number): void {
+    this.objectLayer.fillStyle(0x8ba6ad, 0.22 * alpha);
+    this.objectLayer.fillCircle(object.x, object.y, object.radius * 1.18);
+    this.objectLayer.lineStyle(4, 0xc7d8d6, 0.62 * alpha);
+    for (let i = 0; i < 9; i += 1) {
+      const angle = (i / 9) * Math.PI * 2 + object.ttl * 2.4;
+      const inner = object.radius * 0.18;
+      const outer = object.radius * (0.64 + (i % 3) * 0.12);
+      this.objectLayer.lineBetween(
+        object.x + Math.cos(angle) * inner,
+        object.y + Math.sin(angle) * inner,
+        object.x + Math.cos(angle) * outer,
+        object.y + Math.sin(angle) * outer
+      );
+    }
+    this.objectLayer.fillStyle(0xe2eeeb, 0.44 * alpha);
+    this.objectLayer.fillCircle(object.x - 10, object.y - 12, object.radius * 0.24);
+  }
+
   private drawFinger(object: PlacedObject, alpha: number): void {
     this.objectLayer.fillStyle(0xb78f79, 0.18 * alpha);
     this.objectLayer.fillCircle(object.x, object.y, object.radius);
@@ -261,13 +285,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pulse(x: number, y: number, kind: ToolKind): void {
-    const color = kind === "water" ? 0x8ba6ad : kind === "leaf" ? 0x87936d : kind === "finger" ? 0xb78f79 : 0x8f897d;
+    const color = kind === "pump" || kind === "water" ? 0x8ba6ad : kind === "leaf" ? 0x87936d : kind === "finger" ? 0xb78f79 : 0x8f897d;
     const ring = this.add.circle(x, y, 8).setStrokeStyle(2, color, 0.6).setFillStyle(color, 0.08);
     this.tweens.add({
       targets: ring,
-      radius: 48,
+      radius: kind === "pump" ? 118 : 48,
       alpha: 0,
-      duration: 360,
+      duration: kind === "pump" ? 520 : 360,
       ease: "Sine.easeOut",
       onComplete: () => ring.destroy()
     });

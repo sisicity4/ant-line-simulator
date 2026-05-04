@@ -1,4 +1,4 @@
-export type ToolKind = "pebble" | "leaf" | "finger" | "water";
+export type ToolKind = "pebble" | "leaf" | "finger" | "water" | "pump";
 
 export type AntMode = "forage" | "return";
 
@@ -16,6 +16,7 @@ export interface Ant {
   mode: AntMode;
   routeIndex: number;
   memoryHeading: number;
+  washedTtl: number;
   wiggle: number;
 }
 

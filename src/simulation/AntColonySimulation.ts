@@ -9,7 +9,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   { kind: "pebble", label: "小石", icon: "●", radius: 28, cooldownMs: 160 },
   { kind: "leaf", label: "葉っぱ", icon: "◆", radius: 42, cooldownMs: 210 },
   { kind: "finger", label: "指跡", icon: "⌒", radius: 34, cooldownMs: 35 },
-  { kind: "water", label: "水滴", icon: "◌", radius: 46, cooldownMs: 260 }
+  { kind: "water", label: "水滴", icon: "◌", radius: 46, cooldownMs: 260 },
+  { kind: "pump", label: "水ポンプ", icon: "↯", radius: 82, cooldownMs: 780 }
 ];
 
 const TAU = Math.PI * 2;
@@ -90,7 +91,7 @@ export class AntColonySimulation {
 
     const definition = TOOL_DEFINITIONS.find((tool) => tool.kind === kind)!;
     const nearbyAnts = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < definition.radius * 2.2).length;
-    const ttl = kind === "finger" ? 6 : kind === "water" ? 10 : 16;
+    const ttl = kind === "finger" ? 6 : kind === "water" ? 10 : kind === "pump" ? 2.4 : 16;
     this.objects.push({
       id: this.nextObjectId++,
       kind,
@@ -101,14 +102,18 @@ export class AntColonySimulation {
       maxTtl: ttl
     });
 
-    const disruption = kind === "water" ? 1.1 : kind === "finger" ? 0.86 : 0.45;
+    const disruption = kind === "pump" ? 1.8 : kind === "water" ? 1.1 : kind === "finger" ? 0.86 : 0.45;
     this.pheromones.addDisruption(x, y, definition.radius * 1.15, disruption);
+    if (kind === "pump") {
+      this.washAnts(x, y, definition.radius * 2.15);
+    }
     this.hasInteracted = true;
     this.combo = nearbyAnts > 0 ? Math.min(9, this.combo + 1) : 0;
-    const baseScore = kind === "finger" ? 2 : 5;
-    const impactScore = nearbyAnts * (kind === "water" ? 4 : kind === "leaf" ? 3 : 2);
+    const baseScore = kind === "finger" ? 2 : kind === "pump" ? 12 : 5;
+    const impactScore = nearbyAnts * (kind === "pump" ? 7 : kind === "water" ? 4 : kind === "leaf" ? 3 : 2);
     this.score += baseScore + impactScore + this.combo * 2;
-    this.setReaction(nearbyAnts > 0 ? `${nearbyAnts}匹が迷った。いい邪魔。` : "そこは少し静か。流れの近くを狙うと効く。");
+    if (kind === "pump" && nearbyAnts > 0) this.setReaction(`${nearbyAnts}匹がざっと流された。派手だけどすぐ立て直す。`);
+    else this.setReaction(nearbyAnts > 0 ? `${nearbyAnts}匹が迷った。いい邪魔。` : "そこは少し静か。流れの近くを狙うと効く。");
     return true;
   }
 
@@ -143,6 +148,7 @@ export class AntColonySimulation {
   }
 
   private stepAnt(ant: Ant, dt: number): void {
+    ant.washedTtl = Math.max(0, ant.washedTtl - dt);
     const route = this.activeRoute(ant.id);
     const target = this.routeTarget(route, ant.routeIndex);
     const desiredField = ant.mode === "forage" ? this.pheromones.food : this.pheromones.home;
@@ -157,10 +163,10 @@ export class AntColonySimulation {
     const weberTurn = ((right - left) / (right + left + 0.08)) * 2.25;
     const targetTurn = signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) * 0.5;
     const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * 0.16;
-    const noise = rand(-1.35, 1.35) * (0.42 + frontDisruption * 1.7);
+    const noise = rand(-1.35, 1.35) * (0.42 + frontDisruption * 1.7 + ant.washedTtl * 0.55);
 
     ant.heading = wrapAngle(ant.heading + (weberTurn + targetTurn + memoryTurn + noise) * dt);
-    ant.speed = lerp(ant.speed, 38 + Math.max(left, right) * 13 - frontDisruption * 9, 0.08);
+    ant.speed = lerp(ant.speed, 38 + Math.max(left, right) * 13 - frontDisruption * 9 + ant.washedTtl * 18, 0.08);
     ant.speed = clamp(ant.speed, 20, 62);
 
     this.avoidObjects(ant, dt);
@@ -246,6 +252,24 @@ export class AntColonySimulation {
     }
   }
 
+  private washAnts(x: number, y: number, radius: number): void {
+    for (const ant of this.ants) {
+      const dx = ant.x - x;
+      const dy = ant.y - y;
+      const distance = Math.hypot(dx, dy);
+      if (distance > radius) continue;
+      const force = 1 - distance / radius;
+      const angle = Math.atan2(dy, dx) + rand(-0.35, 0.35);
+      ant.x += Math.cos(angle) * force * 78;
+      ant.y += Math.sin(angle) * force * 78;
+      ant.heading = angle + rand(-0.8, 0.8);
+      ant.speed = 70 + force * 52;
+      ant.washedTtl = Math.max(ant.washedTtl, 1.4 + force * 0.9);
+      ant.memoryHeading = this.angleTo(this.routeTarget(this.activeRoute(ant.id), ant.routeIndex), ant);
+      this.keepInWorld(ant);
+    }
+  }
+
   private avoidTerrain(ant: Ant, dt: number): void {
     for (const patch of this.map.terrain) {
       if (!patch.blocksAnts) continue;
@@ -302,6 +326,7 @@ export class AntColonySimulation {
       mode: "forage",
       routeIndex: 1,
       memoryHeading: this.angleTo(this.routeTarget(route, 1), this.nest),
+      washedTtl: 0,
       wiggle: Math.random() * TAU
     });
   }
