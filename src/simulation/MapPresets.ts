@@ -38,46 +38,74 @@ export const MAP_PRESETS: MapPreset[] = [
   {
     id: "scramble",
     name: "スクランブル交差点",
-    description: "白線みたいな紙片が交差して、中央で行列がばらけやすい。",
-    background: 0xbeb8a5,
-    nest: { x: 128, y: 500 },
-    food: { x: 830, y: 142 },
+    description: "斜めに走る横断帯と広い中央広場で、行列が人波のように交差する。",
+    background: 0xa8a096,
+    nest: { x: 118, y: 526 },
+    food: { x: 840, y: 112 },
     route: [
-      { x: 128, y: 500 },
-      { x: 266, y: 430 },
-      { x: 432, y: 356 },
-      { x: 544, y: 294 },
-      { x: 684, y: 220 },
-      { x: 830, y: 142 }
+      { x: 118, y: 526 },
+      { x: 250, y: 478 },
+      { x: 384, y: 420 },
+      { x: 490, y: 338 },
+      { x: 608, y: 260 },
+      { x: 724, y: 178 },
+      { x: 840, y: 112 }
     ],
     branches: [
       {
-        weight: 0.55,
+        weight: 0.28,
         points: [
-          { x: 128, y: 500 },
-          { x: 314, y: 520 },
-          { x: 470, y: 356 },
-          { x: 668, y: 344 },
-          { x: 830, y: 142 }
+          { x: 118, y: 526 },
+          { x: 206, y: 416 },
+          { x: 342, y: 330 },
+          { x: 506, y: 318 },
+          { x: 660, y: 226 },
+          { x: 840, y: 112 }
         ]
       },
       {
-        weight: 0.4,
+        weight: 0.24,
         points: [
-          { x: 128, y: 500 },
-          { x: 214, y: 310 },
-          { x: 448, y: 350 },
-          { x: 584, y: 158 },
-          { x: 830, y: 142 }
+          { x: 118, y: 526 },
+          { x: 292, y: 556 },
+          { x: 426, y: 448 },
+          { x: 514, y: 346 },
+          { x: 680, y: 350 },
+          { x: 840, y: 112 }
+        ]
+      },
+      {
+        weight: 0.2,
+        points: [
+          { x: 118, y: 526 },
+          { x: 170, y: 330 },
+          { x: 330, y: 292 },
+          { x: 470, y: 344 },
+          { x: 594, y: 168 },
+          { x: 840, y: 112 }
+        ]
+      },
+      {
+        weight: 0.16,
+        points: [
+          { x: 118, y: 526 },
+          { x: 288, y: 456 },
+          { x: 440, y: 554 },
+          { x: 586, y: 426 },
+          { x: 760, y: 376 },
+          { x: 840, y: 112 }
         ]
       }
     ],
     terrain: [
-      { kind: "plaza", x: 474, y: 350, rx: 104, ry: 78, rotation: -0.2, blocksAnts: false },
-      { kind: "root", x: 354, y: 236, rx: 84, ry: 13, rotation: 0.75, blocksAnts: true },
-      { kind: "root", x: 626, y: 458, rx: 92, ry: 15, rotation: -0.52, blocksAnts: true }
+      { kind: "plaza", x: 492, y: 348, rx: 160, ry: 116, rotation: -0.18, blocksAnts: false },
+      { kind: "root", x: 126, y: 262, rx: 88, ry: 34, rotation: -0.3, blocksAnts: true },
+      { kind: "root", x: 242, y: 112, rx: 124, ry: 28, rotation: -0.18, blocksAnts: true },
+      { kind: "root", x: 756, y: 548, rx: 136, ry: 30, rotation: -0.12, blocksAnts: true },
+      { kind: "root", x: 844, y: 318, rx: 62, ry: 116, rotation: 0.08, blocksAnts: true },
+      { kind: "hill", x: 92, y: 404, rx: 58, ry: 70, rotation: 0.32, blocksAnts: true }
     ],
-    scatterSeed: 19
+    scatterSeed: 23
   },
   {
     id: "mountain-river",

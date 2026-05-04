@@ -74,6 +74,10 @@ export class GameScene extends Phaser.Scene {
     this.ground.fillStyle(map.background, 1);
     this.ground.fillRect(0, 0, this.simulation.width, this.simulation.height);
 
+    if (map.id === "scramble") {
+      this.drawScrambleCityBase();
+    }
+
     for (let i = 0; i < 180; i += 1) {
       const x = seededRange(map.scatterSeed, i * 2, 0, this.simulation.width);
       const y = seededRange(map.scatterSeed, i * 2 + 1, 0, this.simulation.height);
@@ -108,28 +112,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (map.id === "scramble") {
-      this.ground.lineStyle(5, 0xe7dfc9, 0.32);
-      const stripes = [
-        [
-          { x: 346, y: 284 },
-          { x: 618, y: 404 }
-        ],
-        [
-          { x: 344, y: 424 },
-          { x: 620, y: 266 }
-        ],
-        [
-          { x: 438, y: 210 },
-          { x: 490, y: 496 }
-        ],
-        [
-          { x: 286, y: 356 },
-          { x: 676, y: 350 }
-        ]
-      ];
-      for (const stripe of stripes) {
-        this.ground.lineBetween(stripe[0].x, stripe[0].y, stripe[1].x, stripe[1].y);
-      }
+      this.drawScrambleCrosswalks();
     }
   }
 
@@ -158,6 +141,105 @@ export class GameScene extends Phaser.Scene {
         this.drawRotatedEllipse({ ...patch, rx: patch.rx * 0.75, ry: patch.ry * 0.42 }, 0x94876f, 0.28);
       }
     }
+  }
+
+  private drawScrambleCityBase(): void {
+    this.ground.fillStyle(0x827d76, 1);
+    this.ground.fillRect(0, 0, this.simulation.width, this.simulation.height);
+
+    this.drawRotatedRect(500, 342, 1020, 178, -0.48, 0x8f8a83, 1);
+    this.drawRotatedRect(438, 354, 940, 150, 0.4, 0x8a867f, 0.92);
+    this.drawRotatedRect(484, 340, 920, 134, -1.48, 0x938d84, 0.9);
+    this.drawRotatedRect(490, 350, 360, 230, -0.16, 0x9c968b, 0.78);
+
+    this.ground.lineStyle(2, 0xd8d1be, 0.16);
+    for (const lane of [
+      { x: 500, y: 342, width: 980, rotation: -0.48 },
+      { x: 438, y: 354, width: 900, rotation: 0.4 },
+      { x: 484, y: 340, width: 880, rotation: -1.48 }
+    ]) {
+      this.drawRotatedLaneLines(lane.x, lane.y, lane.width, lane.rotation);
+    }
+
+    this.drawRotatedRect(106, 82, 224, 116, -0.08, 0x6d6f5c, 1);
+    this.drawRotatedRect(102, 178, 154, 72, -0.2, 0x9c6f55, 0.95);
+    this.drawRotatedRect(782, 54, 292, 96, 0.18, 0x726a5e, 1);
+    this.drawRotatedRect(884, 258, 110, 290, 0.08, 0x625f62, 1);
+    this.drawRotatedRect(760, 590, 306, 76, -0.1, 0x746a64, 1);
+    this.drawRotatedRect(156, 426, 112, 152, 0.34, 0x6f765f, 0.92);
+
+    this.drawWindowBand(108, 82, 184, -0.08, 0xdbbd76);
+    this.drawWindowBand(782, 54, 218, 0.18, 0xc99169);
+    this.drawWindowBand(884, 258, 244, 1.66, 0x7580ba);
+    this.drawWindowBand(760, 590, 246, -0.1, 0xd8c99c);
+  }
+
+  private drawRotatedLaneLines(x: number, y: number, width: number, rotation: number): void {
+    for (const offset of [-42, 42]) {
+      this.ground.save();
+      this.ground.translateCanvas(x, y);
+      this.ground.rotateCanvas(rotation);
+      for (let segment = -width / 2; segment < width / 2; segment += 72) {
+        this.ground.lineBetween(segment, offset, segment + 34, offset);
+      }
+      this.ground.restore();
+    }
+  }
+
+  private drawWindowBand(x: number, y: number, width: number, rotation: number, color: number): void {
+    this.ground.save();
+    this.ground.translateCanvas(x, y);
+    this.ground.rotateCanvas(rotation);
+    for (let i = -width / 2; i < width / 2; i += 18) {
+      this.ground.fillStyle(i % 36 === 0 ? color : 0xefe1b5, 0.38);
+      this.ground.fillRoundedRect(i, -6, 10, 12, 2);
+    }
+    this.ground.restore();
+  }
+
+  private drawScrambleCrosswalks(): void {
+    const crossings = [
+      { x: 480, y: 398, length: 330, stripe: 14, rotation: -0.06 },
+      { x: 602, y: 300, length: 288, stripe: 13, rotation: -0.52 },
+      { x: 368, y: 316, length: 258, stripe: 13, rotation: 0.42 },
+      { x: 488, y: 234, length: 280, stripe: 12, rotation: 1.38 },
+      { x: 260, y: 506, length: 226, stripe: 12, rotation: 0.12 },
+      { x: 732, y: 438, length: 238, stripe: 12, rotation: -0.36 },
+      { x: 760, y: 176, length: 194, stripe: 11, rotation: 0.48 }
+    ];
+    for (const crossing of crossings) {
+      this.drawCrosswalk(crossing.x, crossing.y, crossing.length, crossing.stripe, crossing.rotation);
+    }
+
+    this.ground.fillStyle(0x4f554e, 0.24);
+    for (let i = 0; i < 86; i += 1) {
+      const x = seededRange(83, i * 2, 188, 800);
+      const y = seededRange(83, i * 2 + 1, 126, 548);
+      if (Math.hypot((x - 500) / 1.45, y - 344) > 210) continue;
+      this.ground.fillCircle(x, y, seededRange(83, i + 300, 1.5, 3.5));
+    }
+  }
+
+  private drawCrosswalk(x: number, y: number, length: number, stripeWidth: number, rotation: number): void {
+    this.ground.save();
+    this.ground.translateCanvas(x, y);
+    this.ground.rotateCanvas(rotation);
+    for (let offset = -length / 2; offset < length / 2; offset += stripeWidth * 2.05) {
+      this.ground.fillStyle(0xeee8d7, 0.72);
+      this.ground.fillRoundedRect(offset, -31, stripeWidth, 62, 2);
+      this.ground.fillStyle(0xbeb6a8, 0.16);
+      this.ground.fillRoundedRect(offset + stripeWidth * 0.18, -27, stripeWidth * 0.18, 54, 1);
+    }
+    this.ground.restore();
+  }
+
+  private drawRotatedRect(x: number, y: number, width: number, height: number, rotation: number, color: number, alpha: number): void {
+    this.ground.save();
+    this.ground.translateCanvas(x, y);
+    this.ground.rotateCanvas(rotation);
+    this.ground.fillStyle(color, alpha);
+    this.ground.fillRect(-width / 2, -height / 2, width, height);
+    this.ground.restore();
   }
 
   private drawRotatedEllipse(patch: TerrainPatch, color: number, alpha: number): void {
