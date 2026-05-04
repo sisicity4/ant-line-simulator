@@ -84,9 +84,11 @@ export class AntColonySimulation {
 
   placeTool(x: number, y: number, kind = this.selectedTool): boolean {
     if (Math.hypot(x - this.nest.x, y - this.nest.y) < 58 || Math.hypot(x - this.food.x, y - this.food.y) < 58) {
+      this.setReaction("巣と食べ物のすぐ近くはそっとしておこう。");
       return false;
     }
     if (this.terrainAt(x, y)?.blocksAnts) {
+      this.setReaction("山や小川の上には置けない。行列の肩を狙おう。");
       return false;
     }
 
@@ -118,7 +120,8 @@ export class AntColonySimulation {
     this.hasInteracted = true;
     this.combo = nearbyAnts > 0 ? Math.min(9, this.combo + 1) : 0;
     const baseScore = effectKind === "finger" ? 2 : effectKind === "pump" ? 12 : kind === "mystery" ? 9 : 5;
-    const impactScore = nearbyAnts * (effectKind === "pump" ? 7 : effectKind === "water" ? 4 : effectKind === "leaf" ? 3 : 2);
+    const scoringAnts = Math.min(nearbyAnts, effectKind === "pump" ? 18 : 14);
+    const impactScore = scoringAnts * (effectKind === "pump" ? 4 : effectKind === "water" ? 3 : effectKind === "leaf" ? 2 : 1);
     this.score += baseScore + impactScore + this.combo * 2;
     if (kind === "mystery") this.setReaction(this.mysteryReaction(effectKind, nearbyAnts));
     else if (effectKind === "pump" && nearbyAnts > 0) this.setReaction(`${nearbyAnts}匹がざっと流された。派手だけどすぐ立て直す。`);
@@ -215,8 +218,8 @@ export class AntColonySimulation {
 
   private stepChallenge(dt: number): void {
     this.reactionTimer -= dt;
-    if (this.reactionTimer <= 0 && this.reactionText !== this.challengeText()) {
-      this.reactionText = this.challengeText();
+    if (this.reactionTimer <= 0 && this.reactionText !== this.challengeHint()) {
+      this.reactionText = this.challengeHint();
     }
     if (!this.hasInteracted) return;
 
@@ -241,6 +244,12 @@ export class AntColonySimulation {
     if (!this.hasInteracted) return "お題: 行列の肩をそっと崩す";
     if (this.challengePhase === "disturb") return "お題: 安定度を38%以下にする";
     return "お題: 手を止めて62%以上まで戻す";
+  }
+
+  private challengeHint(): string {
+    if (!this.hasInteracted) return "行列の流れを見て、効きそうな場所に置いてみよう";
+    if (this.challengePhase === "disturb") return "密集している曲がり角や分岐を狙うと大きく乱れる。";
+    return "次の一手を我慢して、アリが道を作り直すのを眺めよう。";
   }
 
   private setReaction(text: string): void {

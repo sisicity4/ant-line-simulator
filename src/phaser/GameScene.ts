@@ -56,9 +56,15 @@ export class GameScene extends Phaser.Scene {
     const tool = TOOL_DEFINITIONS.find((entry) => entry.kind === this.simulation.selectedTool)!;
     if (now - this.lastPlaceAt < tool.cooldownMs) return;
     this.lastPlaceAt = now;
+    const beforeScore = this.simulation.getStats().score;
     const placed = this.simulation.placeTool(pointer.worldX, pointer.worldY, this.simulation.selectedTool);
     if (placed && primaryClick) {
       this.pulse(pointer.worldX, pointer.worldY, this.simulation.selectedTool);
+      const delta = this.simulation.getStats().score - beforeScore;
+      this.floatText(pointer.worldX, pointer.worldY - 28, delta > 0 ? `+${delta}` : "効いた", 0x59694b);
+    } else if (!placed && primaryClick) {
+      this.deniedPulse(pointer.worldX, pointer.worldY);
+      this.floatText(pointer.worldX, pointer.worldY - 18, "置けない", 0x8d5f52);
     }
   }
 
@@ -306,6 +312,39 @@ export class GameScene extends Phaser.Scene {
       duration: kind === "pump" ? 520 : kind === "mystery" ? 460 : 360,
       ease: "Sine.easeOut",
       onComplete: () => ring.destroy()
+    });
+  }
+
+  private deniedPulse(x: number, y: number): void {
+    const ring = this.add.circle(x, y, 8).setStrokeStyle(2, 0x9b6a5c, 0.72).setFillStyle(0x9b6a5c, 0.05);
+    this.tweens.add({
+      targets: ring,
+      radius: 34,
+      alpha: 0,
+      duration: 300,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy()
+    });
+  }
+
+  private floatText(x: number, y: number, text: string, color: number): void {
+    const label = this.add
+      .text(x, y, text, {
+        fontFamily: "Hiragino Sans, Yu Gothic, sans-serif",
+        fontSize: "18px",
+        fontStyle: "700",
+        color: `#${color.toString(16).padStart(6, "0")}`,
+        stroke: "#efe7d4",
+        strokeThickness: 4
+      })
+      .setOrigin(0.5);
+    this.tweens.add({
+      targets: label,
+      y: y - 32,
+      alpha: 0,
+      duration: 760,
+      ease: "Sine.easeOut",
+      onComplete: () => label.destroy()
     });
   }
 }
