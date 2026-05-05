@@ -37,11 +37,11 @@ export const MAP_PRESETS: MapPreset[] = [
   },
   {
     id: "scramble",
-    name: "スクランブル交差点",
-    description: "斜めに走る横断帯と広い中央広場で、行列が人波のように交差する。",
-    background: 0xa8a096,
-    nest: { x: 118, y: 526 },
-    food: { x: 840, y: 112 },
+    name: "渋谷交差点",
+    description: "渋谷スクランブル交差点をモチーフに、5方向の道路と太い横断歩道が集まる。",
+    background: 0x8f8a82,
+    nest: { x: 112, y: 534 },
+    food: { x: 846, y: 106 },
     route: [
       { x: 118, y: 526 },
       { x: 250, y: 478 },
@@ -99,11 +99,13 @@ export const MAP_PRESETS: MapPreset[] = [
     ],
     terrain: [
       { kind: "plaza", x: 492, y: 348, rx: 160, ry: 116, rotation: -0.18, blocksAnts: false },
-      { kind: "root", x: 126, y: 262, rx: 88, ry: 34, rotation: -0.3, blocksAnts: true },
-      { kind: "root", x: 242, y: 112, rx: 124, ry: 28, rotation: -0.18, blocksAnts: true },
-      { kind: "root", x: 756, y: 548, rx: 136, ry: 30, rotation: -0.12, blocksAnts: true },
-      { kind: "root", x: 844, y: 318, rx: 62, ry: 116, rotation: 0.08, blocksAnts: true },
-      { kind: "hill", x: 92, y: 404, rx: 58, ry: 70, rotation: 0.32, blocksAnts: true }
+      { kind: "root", x: 108, y: 92, rx: 134, ry: 56, rotation: -0.08, blocksAnts: true },
+      { kind: "root", x: 356, y: 78, rx: 120, ry: 44, rotation: 0.05, blocksAnts: true },
+      { kind: "root", x: 790, y: 86, rx: 150, ry: 54, rotation: 0.12, blocksAnts: true },
+      { kind: "root", x: 888, y: 330, rx: 58, ry: 170, rotation: 0.05, blocksAnts: true },
+      { kind: "root", x: 752, y: 574, rx: 162, ry: 42, rotation: -0.1, blocksAnts: true },
+      { kind: "root", x: 142, y: 548, rx: 118, ry: 48, rotation: 0.2, blocksAnts: true },
+      { kind: "hill", x: 88, y: 386, rx: 52, ry: 112, rotation: 0.22, blocksAnts: true }
     ],
     scatterSeed: 23
   },

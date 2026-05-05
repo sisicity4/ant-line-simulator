@@ -141,6 +141,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawTerrain(map: MapPreset): void {
+    if (map.id === "scramble") return;
     for (const patch of map.terrain) {
       if (patch.kind === "plaza") {
         this.drawRotatedEllipse(patch, 0xd8d0ba, 0.42);
@@ -163,34 +164,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawScrambleCityBase(): void {
-    this.ground.fillStyle(0x827d76, 1);
+    this.ground.fillStyle(0x7c7974, 1);
     this.ground.fillRect(0, 0, this.simulation.width, this.simulation.height);
 
-    this.drawRotatedRect(500, 342, 1020, 178, -0.48, 0x8f8a83, 1);
-    this.drawRotatedRect(438, 354, 940, 150, 0.4, 0x8a867f, 0.92);
-    this.drawRotatedRect(484, 340, 920, 134, -1.48, 0x938d84, 0.9);
-    this.drawRotatedRect(490, 350, 360, 230, -0.16, 0x9c968b, 0.78);
+    this.ground.fillStyle(0xa49d91, 1);
+    this.ground.fillRect(0, 0, this.simulation.width, 122);
+    this.ground.fillRect(0, 512, this.simulation.width, 128);
+    this.ground.fillRect(0, 0, 138, this.simulation.height);
+    this.ground.fillRect(814, 0, 146, this.simulation.height);
+
+    const roads = [
+      { x: 482, y: 338, width: 1080, height: 154, rotation: -0.48 },
+      { x: 492, y: 344, width: 1040, height: 146, rotation: 0.38 },
+      { x: 500, y: 332, width: 940, height: 136, rotation: -1.49 },
+      { x: 494, y: 368, width: 820, height: 126, rotation: 0.02 },
+      { x: 594, y: 396, width: 660, height: 112, rotation: 1.08 }
+    ];
+    for (const road of roads) {
+      this.drawRotatedRect(road.x, road.y, road.width, road.height, road.rotation, 0x6f6f6d, 1);
+    }
+    this.drawRotatedRect(494, 348, 374, 254, -0.12, 0x787671, 1);
 
     this.ground.lineStyle(2, 0xd8d1be, 0.16);
-    for (const lane of [
-      { x: 500, y: 342, width: 980, rotation: -0.48 },
-      { x: 438, y: 354, width: 900, rotation: 0.4 },
-      { x: 484, y: 340, width: 880, rotation: -1.48 }
-    ]) {
+    for (const lane of roads) {
       this.drawRotatedLaneLines(lane.x, lane.y, lane.width, lane.rotation);
     }
 
-    this.drawRotatedRect(106, 82, 224, 116, -0.08, 0x6d6f5c, 1);
-    this.drawRotatedRect(102, 178, 154, 72, -0.2, 0x9c6f55, 0.95);
-    this.drawRotatedRect(782, 54, 292, 96, 0.18, 0x726a5e, 1);
-    this.drawRotatedRect(884, 258, 110, 290, 0.08, 0x625f62, 1);
-    this.drawRotatedRect(760, 590, 306, 76, -0.1, 0x746a64, 1);
-    this.drawRotatedRect(156, 426, 112, 152, 0.34, 0x6f765f, 0.92);
-
-    this.drawWindowBand(108, 82, 184, -0.08, 0xdbbd76);
-    this.drawWindowBand(782, 54, 218, 0.18, 0xc99169);
-    this.drawWindowBand(884, 258, 244, 1.66, 0x7580ba);
-    this.drawWindowBand(760, 590, 246, -0.1, 0xd8c99c);
+    this.drawScrambleBuildings();
+    this.drawScrambleCars();
+    this.drawScrambleTrees();
   }
 
   private drawRotatedLaneLines(x: number, y: number, width: number, rotation: number): void {
@@ -218,25 +220,26 @@ export class GameScene extends Phaser.Scene {
 
   private drawScrambleCrosswalks(): void {
     const crossings = [
-      { x: 480, y: 398, length: 330, stripe: 14, rotation: -0.06 },
-      { x: 602, y: 300, length: 288, stripe: 13, rotation: -0.52 },
-      { x: 368, y: 316, length: 258, stripe: 13, rotation: 0.42 },
-      { x: 488, y: 234, length: 280, stripe: 12, rotation: 1.38 },
-      { x: 260, y: 506, length: 226, stripe: 12, rotation: 0.12 },
-      { x: 732, y: 438, length: 238, stripe: 12, rotation: -0.36 },
-      { x: 760, y: 176, length: 194, stripe: 11, rotation: 0.48 }
+      { x: 492, y: 402, length: 352, stripe: 17, rotation: -0.04 },
+      { x: 608, y: 294, length: 318, stripe: 16, rotation: -0.52 },
+      { x: 374, y: 314, length: 306, stripe: 16, rotation: 0.42 },
+      { x: 492, y: 228, length: 304, stripe: 15, rotation: 1.38 },
+      { x: 260, y: 500, length: 230, stripe: 14, rotation: 0.1 },
+      { x: 740, y: 440, length: 262, stripe: 15, rotation: -0.36 },
+      { x: 778, y: 174, length: 220, stripe: 14, rotation: 0.48 }
     ];
     for (const crossing of crossings) {
       this.drawCrosswalk(crossing.x, crossing.y, crossing.length, crossing.stripe, crossing.rotation);
     }
 
-    this.ground.fillStyle(0x4f554e, 0.24);
-    for (let i = 0; i < 86; i += 1) {
-      const x = seededRange(83, i * 2, 188, 800);
-      const y = seededRange(83, i * 2 + 1, 126, 548);
-      if (Math.hypot((x - 500) / 1.45, y - 344) > 210) continue;
-      this.ground.fillCircle(x, y, seededRange(83, i + 300, 1.5, 3.5));
-    }
+    this.ground.lineStyle(5, 0xf0eadb, 0.68);
+    this.ground.strokeEllipse(492, 346, 238, 164);
+    this.drawPedestrianCrowd(256, 178, 86, 46, 0.16, 32);
+    this.drawPedestrianCrowd(722, 152, 98, 42, -0.12, 36);
+    this.drawPedestrianCrowd(812, 386, 58, 126, 0.1, 34);
+    this.drawPedestrianCrowd(638, 528, 122, 44, -0.16, 38);
+    this.drawPedestrianCrowd(192, 462, 76, 92, 0.18, 34);
+    this.drawPedestrianCrowd(402, 514, 78, 42, -0.08, 26);
   }
 
   private drawCrosswalk(x: number, y: number, length: number, stripeWidth: number, rotation: number): void {
@@ -244,10 +247,103 @@ export class GameScene extends Phaser.Scene {
     this.ground.translateCanvas(x, y);
     this.ground.rotateCanvas(rotation);
     for (let offset = -length / 2; offset < length / 2; offset += stripeWidth * 2.05) {
-      this.ground.fillStyle(0xeee8d7, 0.72);
-      this.ground.fillRoundedRect(offset, -31, stripeWidth, 62, 2);
+      this.ground.fillStyle(0xf4efe2, 0.9);
+      this.ground.fillRoundedRect(offset, -36, stripeWidth, 72, 2);
       this.ground.fillStyle(0xbeb6a8, 0.16);
-      this.ground.fillRoundedRect(offset + stripeWidth * 0.18, -27, stripeWidth * 0.18, 54, 1);
+      this.ground.fillRoundedRect(offset + stripeWidth * 0.18, -31, stripeWidth * 0.18, 62, 1);
+    }
+    this.ground.restore();
+  }
+
+  private drawScrambleBuildings(): void {
+    this.drawRotatedRect(104, 70, 226, 116, -0.08, 0x5f625d, 1);
+    this.drawRotatedRect(112, 182, 154, 84, -0.2, 0x8b6b60, 1);
+    this.drawRotatedRect(350, 60, 230, 82, 0.05, 0x696b68, 1);
+    this.drawRotatedRect(774, 62, 300, 104, 0.14, 0x6b625a, 1);
+    this.drawRotatedRect(888, 306, 120, 354, 0.05, 0x585b60, 1);
+    this.drawRotatedRect(748, 592, 326, 80, -0.1, 0x6b625d, 1);
+    this.drawRotatedRect(150, 552, 230, 92, 0.2, 0x67695e, 1);
+
+    this.drawSignageStrip(104, 70, 190, -0.08, [0xb78363, 0xc8b46f, 0x7793a4]);
+    this.drawSignageStrip(350, 60, 184, 0.05, [0x7da0aa, 0xb7c0bc, 0xd5c487]);
+    this.drawSignageStrip(774, 62, 236, 0.14, [0xb36f6a, 0x7488b1, 0xc7a667]);
+    this.drawSignageStrip(888, 306, 306, 1.62, [0x6f75b0, 0x84a7b0, 0xb47779]);
+    this.drawSignageStrip(748, 592, 264, -0.1, [0xd7c996, 0x8ea083, 0xa98270]);
+
+    this.drawRotatedRect(850, 216, 96, 180, 0.05, 0x83a1a8, 0.62);
+    this.ground.lineStyle(2, 0xc8d3d0, 0.36);
+    for (let i = 0; i < 7; i += 1) {
+      this.ground.lineBetween(818, 140 + i * 24, 888, 138 + i * 24);
+    }
+  }
+
+  private drawSignageStrip(x: number, y: number, width: number, rotation: number, colors: number[]): void {
+    this.ground.save();
+    this.ground.translateCanvas(x, y);
+    this.ground.rotateCanvas(rotation);
+    for (let i = 0; i < colors.length; i += 1) {
+      this.ground.fillStyle(colors[i], 0.82);
+      this.ground.fillRoundedRect(-width / 2 + i * (width / colors.length) + 5, -18, width / colors.length - 10, 36, 3);
+      this.ground.fillStyle(0xf1ead7, 0.18);
+      this.ground.fillRoundedRect(-width / 2 + i * (width / colors.length) + 10, -12, width / colors.length - 20, 8, 2);
+    }
+    this.ground.restore();
+  }
+
+  private drawScrambleCars(): void {
+    const cars = [
+      { x: 208, y: 266, rotation: -0.48, color: 0xbfc5bf },
+      { x: 244, y: 246, rotation: -0.48, color: 0x8f9aa1 },
+      { x: 714, y: 240, rotation: -0.52, color: 0xc8bea5 },
+      { x: 754, y: 218, rotation: -0.52, color: 0x8791a0 },
+      { x: 714, y: 486, rotation: -0.36, color: 0xa78f82 },
+      { x: 760, y: 468, rotation: -0.36, color: 0xd1d0c2 },
+      { x: 422, y: 156, rotation: 1.38, color: 0x8e9a8c },
+      { x: 516, y: 540, rotation: 0.02, color: 0xb4aba0 }
+    ];
+    for (const car of cars) {
+      this.drawCar(car.x, car.y, car.rotation, car.color);
+    }
+  }
+
+  private drawCar(x: number, y: number, rotation: number, color: number): void {
+    this.ground.save();
+    this.ground.translateCanvas(x, y);
+    this.ground.rotateCanvas(rotation);
+    this.ground.fillStyle(color, 0.92);
+    this.ground.fillRoundedRect(-16, -7, 32, 14, 3);
+    this.ground.fillStyle(0x4d5559, 0.38);
+    this.ground.fillRoundedRect(-5, -5, 12, 10, 2);
+    this.ground.restore();
+  }
+
+  private drawScrambleTrees(): void {
+    for (const tree of [
+      { x: 64, y: 230 },
+      { x: 76, y: 282 },
+      { x: 86, y: 438 },
+      { x: 196, y: 584 },
+      { x: 678, y: 584 },
+      { x: 918, y: 468 },
+      { x: 916, y: 146 }
+    ]) {
+      this.ground.fillStyle(0x5f705b, 0.9);
+      this.ground.fillCircle(tree.x, tree.y, 18);
+      this.ground.fillStyle(0x82906d, 0.42);
+      this.ground.fillCircle(tree.x - 5, tree.y - 5, 8);
+    }
+  }
+
+  private drawPedestrianCrowd(x: number, y: number, width: number, height: number, rotation: number, count: number): void {
+    this.ground.save();
+    this.ground.translateCanvas(x, y);
+    this.ground.rotateCanvas(rotation);
+    for (let i = 0; i < count; i += 1) {
+      const px = seededRange(211 + x, i * 2, -width / 2, width / 2);
+      const py = seededRange(223 + y, i * 2 + 1, -height / 2, height / 2);
+      const color = i % 4 === 0 ? 0x2f3334 : i % 4 === 1 ? 0x56524a : i % 4 === 2 ? 0x72645a : 0x3f4a51;
+      this.ground.fillStyle(color, 0.58);
+      this.ground.fillCircle(px, py, seededRange(233 + x, i, 1.6, 2.9));
     }
     this.ground.restore();
   }
