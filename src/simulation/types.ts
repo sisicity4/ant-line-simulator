@@ -37,6 +37,7 @@ export interface SimulationStats {
   deliveredPieces: number;
   trailIntegrity: number;
   activeAnts: number;
+  totalAnts: number;
   activeCargo: number;
   selectedTool: ToolKind;
   mapName: string;

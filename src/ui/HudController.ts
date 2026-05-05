@@ -40,7 +40,8 @@ export class HudController {
         </div>
         <div class="telemetry-grid">
           <span>運んだカケラ <strong data-pieces>0</strong></span>
-          <span>アリ <strong data-ants>0</strong></span>
+          <span>活動中 <strong data-ants>0</strong></span>
+          <span>総アリ <strong data-total-ants>0</strong></span>
           <span>大物 <strong data-cargo>0</strong></span>
           <span>初期 <strong data-pattern>---</strong></span>
         </div>
@@ -135,6 +136,7 @@ export class HudController {
     if (!this.stats) return;
     this.setText("[data-pieces]", this.stats.deliveredPieces.toString());
     this.setText("[data-ants]", this.stats.activeAnts.toString());
+    this.setText("[data-total-ants]", this.stats.totalAnts.toString());
     this.setText("[data-cargo]", this.stats.activeCargo.toString());
     this.setText("[data-pattern]", this.stats.patternName);
     this.setText("[data-integrity]", `${this.stats.trailIntegrity}%`);

@@ -161,6 +161,7 @@ export class AntColonySimulation {
       deliveredPieces: this.deliveredPieces,
       trailIntegrity: this.calculateTrailIntegrity(),
       activeAnts: this.ants.length,
+      totalAnts: this.nextAntId - 1,
       activeCargo: this.ants.filter((ant) => ant.cargoSize > 0).length,
       selectedTool: this.selectedTool,
       mapName: this.map.name,
