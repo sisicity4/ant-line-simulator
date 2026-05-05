@@ -44,6 +44,19 @@ export interface SimulationStats {
   patternName: string;
 }
 
+export interface SimulationDebugSnapshot extends SimulationStats {
+  objects: number;
+  foods: number;
+  invalidAnts: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  maxSpeed: number;
+  maxPheromone: number;
+  routeCacheSize: number;
+}
+
 export interface ToolDefinition {
   kind: ToolKind;
   label: string;

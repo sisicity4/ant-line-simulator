@@ -1,6 +1,6 @@
 import { PheromoneGrid } from "./PheromoneGrid";
 import { MAP_PRESETS } from "./MapPresets";
-import type { Ant, MapPreset, PlacedObject, SimulationStats, StartPattern, TerrainPatch, ToolDefinition, ToolKind, Vec2 } from "./types";
+import type { Ant, MapPreset, PlacedObject, SimulationDebugSnapshot, SimulationStats, StartPattern, TerrainPatch, ToolDefinition, ToolKind, Vec2 } from "./types";
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
@@ -46,6 +46,8 @@ export class AntColonySimulation {
   private spawnTimer = 0;
   private cargoTimer = 4;
   private pattern: StartPattern = START_PATTERNS[0];
+  private patternRunId = 0;
+  private readonly routeCache = new Map<string, Vec2[]>();
 
   constructor() {
     this.reset();
@@ -65,6 +67,8 @@ export class AntColonySimulation {
 
   reset(): void {
     this.pattern = this.pickStartPattern();
+    this.patternRunId += 1;
+    this.routeCache.clear();
     this.ants.length = 0;
     this.objects.length = 0;
     this.pheromones.food.fill(0);
@@ -73,6 +77,7 @@ export class AntColonySimulation {
     this.deliveredPieces = 0;
     this.spawnTimer = 0;
     this.cargoTimer = 4;
+    this.nextObjectId = 1;
     for (let i = 0; i < 52; i += 1) {
       this.spawnAnt(this.initialHeading());
     }
@@ -87,6 +92,10 @@ export class AntColonySimulation {
 
   setTool(tool: ToolKind): void {
     this.selectedTool = tool;
+  }
+
+  setTimeScale(timeScale: number): void {
+    this.timeScale = timeScale === 10 ? 10 : 1;
   }
 
   toggleTimeScale(): void {
@@ -131,6 +140,7 @@ export class AntColonySimulation {
   step(deltaMs: number): void {
     const scaledDelta = deltaMs * this.timeScale;
     const steps = Math.ceil(scaledDelta / 50);
+    if (steps <= 0) return;
     const stepMs = scaledDelta / steps;
     for (let i = 0; i < steps; i += 1) {
       this.stepOnce(stepMs);
@@ -148,6 +158,50 @@ export class AntColonySimulation {
       timeScale: this.timeScale,
       patternName: this.pattern.name
     };
+  }
+
+  getDebugSnapshot(): SimulationDebugSnapshot {
+    const stats = this.getStats();
+    let invalidAnts = 0;
+    let minX = WORLD_WIDTH;
+    let maxX = 0;
+    let minY = WORLD_HEIGHT;
+    let maxY = 0;
+    let maxSpeed = 0;
+    for (const ant of this.ants) {
+      const valid =
+        Number.isFinite(ant.x) &&
+        Number.isFinite(ant.y) &&
+        Number.isFinite(ant.heading) &&
+        Number.isFinite(ant.speed) &&
+        ant.x >= 0 &&
+        ant.x <= WORLD_WIDTH &&
+        ant.y >= 0 &&
+        ant.y <= WORLD_HEIGHT;
+      if (!valid) invalidAnts += 1;
+      minX = Math.min(minX, ant.x);
+      maxX = Math.max(maxX, ant.x);
+      minY = Math.min(minY, ant.y);
+      maxY = Math.max(maxY, ant.y);
+      maxSpeed = Math.max(maxSpeed, ant.speed);
+    }
+    return {
+      ...stats,
+      objects: this.objects.length,
+      foods: this.foods.length,
+      invalidAnts,
+      minX: Math.round(minX),
+      maxX: Math.round(maxX),
+      minY: Math.round(minY),
+      maxY: Math.round(maxY),
+      maxSpeed: Math.round(maxSpeed),
+      maxPheromone: Math.round(this.maxPheromone() * 1000) / 1000,
+      routeCacheSize: this.routeCache.size
+    };
+  }
+
+  getDisplayRoutes(): Vec2[][] {
+    return this.foods.flatMap((food) => [this.transformRoute(this.map.route, food), ...this.map.branches.map((branch) => this.transformRoute(branch.points, food))]);
   }
 
   private stepOnce(deltaMs: number): void {
@@ -400,13 +454,26 @@ export class AntColonySimulation {
 
   private activeRoute(antId: number, foodIndex?: number): Vec2[] {
     const roll = seededUnit(antId + this.map.scatterSeed * 97);
-    const food = this.foods[foodIndex ?? this.pickFoodIndex(antId)];
+    const resolvedFoodIndex = foodIndex ?? this.pickFoodIndex(antId);
+    const branchIndex = this.pickBranchIndex(roll);
+    const cacheKey = `${this.patternRunId}:${this.map.id}:${resolvedFoodIndex}:${branchIndex}`;
+    const cached = this.routeCache.get(cacheKey);
+    if (cached) return cached;
+    const food = this.foods[resolvedFoodIndex];
+    const points = branchIndex >= 0 ? this.map.branches[branchIndex].points : this.map.route;
+    const route = this.transformRoute(points, food);
+    this.routeCache.set(cacheKey, route);
+    return route;
+  }
+
+  private pickBranchIndex(roll: number): number {
     let threshold = 0;
-    for (const branch of this.map.branches) {
+    for (let i = 0; i < this.map.branches.length; i += 1) {
+      const branch = this.map.branches[i];
       threshold += branch.weight;
-      if (roll < threshold) return this.transformRoute(branch.points, food);
+      if (roll < threshold) return i;
     }
-    return this.transformRoute(this.map.route, food);
+    return -1;
   }
 
   private transformRoute(points: Vec2[], food: Vec2): Vec2[] {
@@ -437,6 +504,14 @@ export class AntColonySimulation {
       nest: this.safePoint(raw.nest),
       foods: raw.foods.map((food) => this.safePoint(food))
     };
+  }
+
+  private maxPheromone(): number {
+    let max = 0;
+    for (let i = 0; i < this.pheromones.food.length; i += 1) {
+      max = Math.max(max, this.pheromones.food[i], this.pheromones.home[i], this.pheromones.disruption[i]);
+    }
+    return max;
   }
 
   private safePoint(point: Vec2): Vec2 {

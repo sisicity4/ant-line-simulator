@@ -3,6 +3,12 @@ import { AntColonySimulation, TOOL_DEFINITIONS } from "../simulation/AntColonySi
 import type { HudController } from "../ui/HudController";
 import type { MapPreset, PlacedObject, TerrainPatch, ToolKind, Vec2 } from "../simulation/types";
 
+declare global {
+  interface Window {
+    __antDebug?: () => ReturnType<AntColonySimulation["getDebugSnapshot"]>;
+  }
+}
+
 export class GameScene extends Phaser.Scene {
   private readonly simulation = new AntColonySimulation();
   private readonly hud: HudController;
@@ -12,6 +18,7 @@ export class GameScene extends Phaser.Scene {
   private antLayer!: Phaser.GameObjects.Graphics;
   private fxLayer!: Phaser.GameObjects.Graphics;
   private lastPlaceAt = 0;
+  private preferredTimeScale = 1;
 
   constructor(hud: HudController) {
     super("game");
@@ -32,14 +39,20 @@ export class GameScene extends Phaser.Scene {
       onToolSelect: (tool) => this.simulation.setTool(tool),
       onMapSelect: (mapId) => {
         this.simulation.setMap(mapId);
+        this.simulation.setTimeScale(this.preferredTimeScale);
         this.drawGround();
       },
       onReset: () => {
         this.simulation.reset();
+        this.simulation.setTimeScale(this.preferredTimeScale);
         this.drawGround();
       },
-      onTimeScaleToggle: () => this.simulation.toggleTimeScale()
+      onTimeScaleToggle: () => {
+        this.simulation.toggleTimeScale();
+        this.preferredTimeScale = this.simulation.timeScale;
+      }
     });
+    window.__antDebug = () => this.simulation.getDebugSnapshot();
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.tryPlace(pointer, true));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
@@ -107,11 +120,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawMapRoutes(map: MapPreset): void {
-    this.ground.lineStyle(2, 0x8f826d, 0.22);
-    this.drawSpline(map.route, 56);
-    this.ground.lineStyle(2, 0x738065, 0.13);
-    for (const branch of map.branches) {
-      this.drawSpline(branch.points, 44);
+    const routes = this.simulation.getDisplayRoutes();
+    for (let i = 0; i < routes.length; i += 1) {
+      this.ground.lineStyle(2, i % (map.branches.length + 1) === 0 ? 0x8f826d : 0x738065, i % (map.branches.length + 1) === 0 ? 0.22 : 0.13);
+      this.drawSpline(routes[i], i % (map.branches.length + 1) === 0 ? 56 : 44);
     }
 
     if (map.id === "scramble") {
@@ -120,6 +132,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawSpline(points: Vec2[], divisions: number): void {
+    if (points.length < 2) return;
     const path = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
     path.draw(this.ground, divisions);
   }
