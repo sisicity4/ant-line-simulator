@@ -24,6 +24,7 @@
 - 過剰な匂いによる行列の一時的な乱れ: Suckling et al., 2008
 
 厳密な生物シミュレーションではなく、論文由来の行動ルールをゲーム向けに抽象化しています。
+詳しい再調査結果と実装上の扱いは [docs/ant-behavior-model.md](docs/ant-behavior-model.md) にまとめています。
 
 ## 開発
 
