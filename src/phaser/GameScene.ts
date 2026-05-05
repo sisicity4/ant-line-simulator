@@ -325,7 +325,8 @@ export class GameScene extends Phaser.Scene {
   private drawAnts(): void {
     this.antLayer.clear();
     for (const ant of this.simulation.ants) {
-      const color = ant.washedTtl > 0 ? 0x5f7278 : ant.mode === "return" ? 0x51463d : 0x5f5549;
+      const bodyColor = ant.washedTtl > 0 ? 0x5f7278 : ant.mode === "return" ? 0x6b5d43 : 0x4f5f57;
+      const headColor = ant.washedTtl > 0 ? 0x71868a : ant.mode === "return" ? 0x8a7652 : 0x65766b;
       this.antLayer.save();
       this.antLayer.translateCanvas(ant.x, ant.y);
       this.antLayer.rotateCanvas(ant.heading);
@@ -333,9 +334,9 @@ export class GameScene extends Phaser.Scene {
         this.antLayer.lineStyle(2, 0x9eb8ba, Math.min(0.5, ant.washedTtl * 0.28));
         this.antLayer.lineBetween(-15, 0, -5, 0);
       }
-      this.antLayer.fillStyle(color, 0.9);
+      this.antLayer.fillStyle(bodyColor, 0.9);
       this.antLayer.fillEllipse(0, 0, 9, 4.6);
-      this.antLayer.fillStyle(0x73675a, 0.86);
+      this.antLayer.fillStyle(headColor, 0.86);
       this.antLayer.fillEllipse(4.7, 0, 4.7, 3.6);
       if (ant.cargoSize > 0) {
         this.antLayer.fillStyle(0xd4c174, 0.95);
