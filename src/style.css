@@ -65,6 +65,7 @@ canvas {
 
 .hud,
 .reset-button,
+.speed-button,
 .research-button {
   pointer-events: auto;
   color: #463f36;
@@ -119,7 +120,7 @@ canvas {
   transition: width 160ms ease;
 }
 
-.score-grid {
+.telemetry-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -139,7 +140,7 @@ canvas {
 
 .map-dock {
   position: absolute;
-  top: 150px;
+  top: 92px;
   left: 50%;
   transform: translateX(-50%);
   width: min(620px, calc(100vw - 32px));
@@ -149,29 +150,10 @@ canvas {
   padding: 8px;
 }
 
-.play-prompt {
-  position: absolute;
-  top: 88px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(620px, calc(100vw - 32px));
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
-}
-
-.play-prompt strong {
-  color: #59694b;
-  white-space: nowrap;
-}
-
 .tool-button,
 .map-button,
 .research-button,
+.speed-button,
 .reset-button {
   min-height: 42px;
   border: 0;
@@ -207,9 +189,17 @@ canvas {
 }
 
 .tool-button.is-active,
-.map-button.is-active {
+.map-button.is-active,
+.speed-button.is-active {
   background: #f2ead4;
   outline: 2px solid rgba(106, 128, 88, 0.65);
+}
+
+.speed-button {
+  position: absolute;
+  right: 112px;
+  bottom: 20px;
+  padding: 0 14px;
 }
 
 .reset-button {
@@ -344,7 +334,7 @@ canvas {
     grid-template-columns: auto minmax(80px, 1fr) 44px;
   }
 
-  .score-grid {
+  .telemetry-grid {
     justify-content: flex-start;
   }
 
@@ -356,19 +346,10 @@ canvas {
   }
 
   .map-dock {
-    top: 154px;
+    top: 104px;
     width: min(396px, calc(100vw - 20px));
     overflow-x: auto;
     justify-content: flex-start;
-  }
-
-  .play-prompt {
-    top: 92px;
-    width: min(396px, calc(100vw - 20px));
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 2px;
-    min-height: 52px;
   }
 
   .map-button {
@@ -387,6 +368,11 @@ canvas {
 
   .reset-button {
     right: 10px;
+    bottom: 76px;
+  }
+
+  .speed-button {
+    right: 100px;
     bottom: 76px;
   }
 

@@ -6,6 +6,7 @@ interface HudOptions {
   onToolSelect: (tool: ToolKind) => void;
   onMapSelect: (mapId: string) => void;
   onReset: () => void;
+  onTimeScaleToggle: () => void;
 }
 
 export class HudController {
@@ -37,17 +38,12 @@ export class HudController {
           <span class="meter"><span class="meter-fill" data-meter></span></span>
           <strong data-integrity>0%</strong>
         </div>
-        <div class="score-grid">
-          <span>スコア <strong data-score>0</strong></span>
-          <span>運んだかけら <strong data-food>0</strong></span>
+        <div class="telemetry-grid">
+          <span>運んだカケラ <strong data-pieces>0</strong></span>
           <span>アリ <strong data-ants>0</strong></span>
           <span>大物 <strong data-cargo>0</strong></span>
-          <span>連鎖 <strong data-combo>0</strong></span>
+          <span>初期 <strong data-pattern>---</strong></span>
         </div>
-      </div>
-      <div class="hud play-prompt">
-        <strong data-challenge>お題</strong>
-        <span data-reaction>行列の流れを見て、効きそうな場所に置いてみよう</span>
       </div>
       <div class="hud map-dock" role="toolbar" aria-label="マップ">
         ${this.options.maps
@@ -72,6 +68,7 @@ export class HudController {
           )
           .join("")}
       </div>
+      <button class="speed-button" type="button" data-speed aria-pressed="false">10倍速</button>
       <button class="reset-button" type="button" data-reset>リセット</button>
       <button class="research-button" type="button" data-open-research>生態ノート</button>
       <section class="research-page is-hidden" aria-label="アリの生態ノート" data-research-page>
@@ -122,6 +119,7 @@ export class HudController {
       });
     }
     this.root.querySelector<HTMLButtonElement>("[data-reset]")?.addEventListener("click", () => this.options?.onReset());
+    this.root.querySelector<HTMLButtonElement>("[data-speed]")?.addEventListener("click", () => this.options?.onTimeScaleToggle());
     this.root.querySelector<HTMLButtonElement>("[data-open-research]")?.addEventListener("click", () => this.setResearchOpen(true));
     this.root.querySelector<HTMLButtonElement>("[data-close-research]")?.addEventListener("click", () => this.setResearchOpen(false));
     this.root.querySelector<HTMLElement>("[data-research-page]")?.addEventListener("click", (event) => {
@@ -135,16 +133,20 @@ export class HudController {
 
   private renderStats(): void {
     if (!this.stats) return;
-    this.setText("[data-score]", this.stats.score.toString());
-    this.setText("[data-food]", this.stats.deliveredFood.toString());
+    this.setText("[data-pieces]", this.stats.deliveredPieces.toString());
     this.setText("[data-ants]", this.stats.activeAnts.toString());
     this.setText("[data-cargo]", this.stats.activeCargo.toString());
-    this.setText("[data-combo]", this.stats.combo.toString());
+    this.setText("[data-pattern]", this.stats.patternName);
     this.setText("[data-integrity]", `${this.stats.trailIntegrity}%`);
-    this.setText("[data-challenge]", this.stats.challengeText);
-    this.setText("[data-reaction]", this.stats.reactionText);
     const meter = this.root.querySelector<HTMLSpanElement>("[data-meter]");
     if (meter) meter.style.width = `${this.stats.trailIntegrity}%`;
+    const speedButton = this.root.querySelector<HTMLButtonElement>("[data-speed]");
+    if (speedButton) {
+      const active = this.stats.timeScale === 10;
+      speedButton.classList.toggle("is-active", active);
+      speedButton.setAttribute("aria-pressed", active ? "true" : "false");
+      speedButton.textContent = active ? "1倍速" : "10倍速";
+    }
   }
 
   private syncTools(): void {

@@ -15,9 +15,10 @@ export interface Ant {
   speed: number;
   mode: AntMode;
   routeIndex: number;
+  foodIndex: number;
   memoryHeading: number;
   cargoSize: number;
-  cargoValue: number;
+  cargoPieces: number;
   washedTtl: number;
   wiggle: number;
 }
@@ -33,16 +34,14 @@ export interface PlacedObject {
 }
 
 export interface SimulationStats {
-  score: number;
-  deliveredFood: number;
+  deliveredPieces: number;
   trailIntegrity: number;
   activeAnts: number;
   activeCargo: number;
   selectedTool: ToolKind;
   mapName: string;
-  challengeText: string;
-  reactionText: string;
-  combo: number;
+  timeScale: number;
+  patternName: string;
 }
 
 export interface ToolDefinition {
@@ -68,6 +67,13 @@ export interface TerrainPatch {
 export interface RouteBranch {
   points: Vec2[];
   weight: number;
+}
+
+export interface StartPattern {
+  id: string;
+  name: string;
+  nest: Vec2;
+  foods: Vec2[];
 }
 
 export interface MapPreset {

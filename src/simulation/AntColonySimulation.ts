@@ -1,6 +1,6 @@
 import { PheromoneGrid } from "./PheromoneGrid";
 import { MAP_PRESETS } from "./MapPresets";
-import type { Ant, MapPreset, PlacedObject, SimulationStats, TerrainPatch, ToolDefinition, ToolKind, Vec2 } from "./types";
+import type { Ant, MapPreset, PlacedObject, SimulationStats, StartPattern, TerrainPatch, ToolDefinition, ToolKind, Vec2 } from "./types";
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
@@ -15,6 +15,18 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 ];
 
 const TAU = Math.PI * 2;
+const START_PATTERNS: StartPattern[] = [
+  { id: "southwest-crumb", name: "南西のひとかけら", nest: { x: 118, y: 526 }, foods: [{ x: 840, y: 112 }] },
+  { id: "northwest-long", name: "北西の長い道", nest: { x: 122, y: 118 }, foods: [{ x: 790, y: 498 }] },
+  { id: "east-edge", name: "東端の巣", nest: { x: 842, y: 340 }, foods: [{ x: 142, y: 138 }] },
+  { id: "low-food", name: "低い食べ場", nest: { x: 178, y: 238 }, foods: [{ x: 760, y: 540 }] },
+  { id: "upper-food", name: "高い食べ場", nest: { x: 420, y: 548 }, foods: [{ x: 548, y: 102 }] },
+  { id: "left-to-right", name: "横切る列", nest: { x: 92, y: 366 }, foods: [{ x: 858, y: 318 }] },
+  { id: "right-to-left-pair", name: "逆流する二つ", nest: { x: 850, y: 138 }, foods: [{ x: 124, y: 500 }, { x: 218, y: 170 }] },
+  { id: "center-offset", name: "中央の脇道", nest: { x: 314, y: 332 }, foods: [{ x: 822, y: 480 }] },
+  { id: "diagonal-short", name: "短い斜め道", nest: { x: 232, y: 486 }, foods: [{ x: 694, y: 156 }] },
+  { id: "rare-double", name: "まれな二か所", nest: { x: 520, y: 520 }, foods: [{ x: 164, y: 132 }, { x: 824, y: 164 }] }
+];
 
 export class AntColonySimulation {
   readonly width = WORLD_WIDTH;
@@ -26,48 +38,41 @@ export class AntColonySimulation {
 
   selectedTool: ToolKind = "pebble";
   map: MapPreset = MAP_PRESETS[0];
-  score = 0;
-  deliveredFood = 0;
-  combo = 0;
+  timeScale = 1;
+  deliveredPieces = 0;
 
   private nextAntId = 1;
   private nextObjectId = 1;
   private spawnTimer = 0;
   private cargoTimer = 4;
-  private hasInteracted = false;
-  private challengePhase: "disturb" | "recover" = "disturb";
-  private reactionText = "行列の流れを見て、効きそうな場所に置いてみよう";
-  private reactionTimer = 3;
+  private pattern: StartPattern = START_PATTERNS[0];
 
   constructor() {
-    for (let i = 0; i < 52; i += 1) {
-      this.spawnAnt(this.initialHeading());
-    }
+    this.reset();
   }
 
   get nest(): Vec2 {
-    return this.map.nest;
+    return this.pattern.nest;
   }
 
   get food(): Vec2 {
-    return this.map.food;
+    return this.pattern.foods[0];
+  }
+
+  get foods(): Vec2[] {
+    return this.pattern.foods;
   }
 
   reset(): void {
+    this.pattern = this.pickStartPattern();
     this.ants.length = 0;
     this.objects.length = 0;
     this.pheromones.food.fill(0);
     this.pheromones.home.fill(0);
     this.pheromones.disruption.fill(0);
-    this.score = 0;
-    this.deliveredFood = 0;
-    this.combo = 0;
+    this.deliveredPieces = 0;
     this.spawnTimer = 0;
     this.cargoTimer = 4;
-    this.hasInteracted = false;
-    this.challengePhase = "disturb";
-    this.reactionText = "行列の流れを見て、効きそうな場所に置いてみよう";
-    this.reactionTimer = 3;
     for (let i = 0; i < 52; i += 1) {
       this.spawnAnt(this.initialHeading());
     }
@@ -84,13 +89,15 @@ export class AntColonySimulation {
     this.selectedTool = tool;
   }
 
+  toggleTimeScale(): void {
+    this.timeScale = this.timeScale === 1 ? 10 : 1;
+  }
+
   placeTool(x: number, y: number, kind = this.selectedTool): boolean {
-    if (Math.hypot(x - this.nest.x, y - this.nest.y) < 58 || Math.hypot(x - this.food.x, y - this.food.y) < 58) {
-      this.setReaction("巣と食べ物のすぐ近くはそっとしておこう。");
+    if (Math.hypot(x - this.nest.x, y - this.nest.y) < 58 || this.foods.some((food) => Math.hypot(x - food.x, y - food.y) < 58)) {
       return false;
     }
     if (this.terrainAt(x, y)?.blocksAnts) {
-      this.setReaction("山や小川の上には置けない。行列の肩を狙おう。");
       return false;
     }
 
@@ -98,7 +105,6 @@ export class AntColonySimulation {
     const mysteryEffect = kind === "mystery" ? this.pickMysteryEffect(x, y) : undefined;
     const effectKind = mysteryEffect ?? kind;
     const effectRadius = effectKind === "pump" ? 82 : effectKind === "water" ? 46 : effectKind === "leaf" ? 42 : effectKind === "finger" ? 34 : definition.radius;
-    const nearbyAnts = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < effectRadius * 2.2).length;
     const ttl = kind === "mystery" ? 2.8 : effectKind === "finger" ? 6 : effectKind === "water" ? 10 : effectKind === "pump" ? 2.4 : 16;
     this.objects.push({
       id: this.nextObjectId++,
@@ -119,24 +125,37 @@ export class AntColonySimulation {
     } else if (effectKind === "finger") {
       this.turnNearbyAnts(x, y, effectRadius * 2.1, 2.2);
     }
-    this.hasInteracted = true;
-    this.combo = nearbyAnts > 0 ? Math.min(9, this.combo + 1) : 0;
-    const baseScore = effectKind === "finger" ? 2 : effectKind === "pump" ? 12 : kind === "mystery" ? 9 : 5;
-    const scoringAnts = Math.min(nearbyAnts, effectKind === "pump" ? 18 : 14);
-    const impactScore = scoringAnts * (effectKind === "pump" ? 4 : effectKind === "water" ? 3 : effectKind === "leaf" ? 2 : 1);
-    this.score += baseScore + impactScore + this.combo * 2;
-    if (kind === "mystery") this.setReaction(this.mysteryReaction(effectKind, nearbyAnts));
-    else if (effectKind === "pump" && nearbyAnts > 0) this.setReaction(`${nearbyAnts}匹がざっと流された。派手だけどすぐ立て直す。`);
-    else this.setReaction(nearbyAnts > 0 ? `${nearbyAnts}匹が迷った。いい邪魔。` : "そこは少し静か。流れの近くを狙うと効く。");
     return true;
   }
 
   step(deltaMs: number): void {
+    const scaledDelta = deltaMs * this.timeScale;
+    const steps = Math.ceil(scaledDelta / 50);
+    const stepMs = scaledDelta / steps;
+    for (let i = 0; i < steps; i += 1) {
+      this.stepOnce(stepMs);
+    }
+  }
+
+  getStats(): SimulationStats {
+    return {
+      deliveredPieces: this.deliveredPieces,
+      trailIntegrity: this.calculateTrailIntegrity(),
+      activeAnts: this.ants.length,
+      activeCargo: this.ants.filter((ant) => ant.cargoSize > 0).length,
+      selectedTool: this.selectedTool,
+      mapName: this.map.name,
+      timeScale: this.timeScale,
+      patternName: this.pattern.name
+    };
+  }
+
+  private stepOnce(deltaMs: number): void {
     const dt = Math.min(0.05, deltaMs / 1000);
     this.spawnTimer += dt;
     if (this.spawnTimer > 0.65 && this.ants.length < 95) {
       this.spawnTimer = 0;
-      this.spawnAnt(this.angleTo(this.routeTarget(this.map.route, 1), this.nest) + rand(-0.45, 0.45));
+      this.spawnAnt(this.initialHeading());
     }
     this.cargoTimer -= dt;
     if (this.cargoTimer <= 0) {
@@ -148,27 +167,11 @@ export class AntColonySimulation {
     for (const ant of this.ants) {
       this.stepAnt(ant, dt);
     }
-    this.stepChallenge(dt);
-  }
-
-  getStats(): SimulationStats {
-    return {
-      score: Math.round(this.score),
-      deliveredFood: this.deliveredFood,
-      trailIntegrity: this.calculateTrailIntegrity(),
-      activeAnts: this.ants.length,
-      activeCargo: this.ants.filter((ant) => ant.cargoSize > 0).length,
-      selectedTool: this.selectedTool,
-      mapName: this.map.name,
-      challengeText: this.challengeText(),
-      reactionText: this.reactionText,
-      combo: this.combo
-    };
   }
 
   private stepAnt(ant: Ant, dt: number): void {
     ant.washedTtl = Math.max(0, ant.washedTtl - dt);
-    const route = this.activeRoute(ant.id);
+    const route = this.activeRoute(ant.id, ant.foodIndex);
     const target = this.routeTarget(route, ant.routeIndex);
     const desiredField = ant.mode === "forage" ? this.pheromones.food : this.pheromones.home;
     const deposit = ant.mode === "forage" ? "home" : "food";
@@ -208,68 +211,20 @@ export class AntColonySimulation {
       } else {
         ant.mode = ant.mode === "forage" ? "return" : "forage";
         ant.routeIndex = ant.mode === "forage" ? 1 : route.length - 2;
-        ant.memoryHeading = this.angleTo(this.routeTarget(route, ant.routeIndex), ant);
+        if (ant.mode === "forage") {
+          ant.foodIndex = this.pickFoodIndex(ant.id + Math.round(this.deliveredPieces * 17));
+        }
+        const nextRoute = this.activeRoute(ant.id, ant.foodIndex);
+        ant.memoryHeading = this.angleTo(this.routeTarget(nextRoute, ant.routeIndex), ant);
         ant.heading = wrapAngle(ant.heading + Math.PI + rand(-0.4, 0.4));
       }
       if (Math.hypot(ant.x - this.nest.x, ant.y - this.nest.y) < 32 && ant.mode === "forage") {
-        this.deliveredFood += 1;
-        const cargoBonus = ant.cargoValue;
-        this.score += 18 + cargoBonus;
-        if (cargoBonus > 0) {
-          this.setReaction(`大きいかけらを運び切った。+${cargoBonus}`);
-          ant.cargoSize = 0;
-          ant.cargoValue = 0;
-        }
-        if (this.challengePhase === "recover" && this.hasInteracted) {
-          this.score += 6;
-          if (cargoBonus === 0) {
-            this.setReaction("行列が戻ってきた。観察ボーナス。");
-          }
-        }
+        this.deliveredPieces += ant.cargoPieces > 0 ? ant.cargoPieces : 1;
+        ant.cargoSize = 0;
+        ant.cargoPieces = 0;
         this.pheromones.addFood(ant.x, ant.y, 0.8);
       }
     }
-  }
-
-  private stepChallenge(dt: number): void {
-    this.reactionTimer -= dt;
-    if (this.reactionTimer <= 0 && this.reactionText !== this.challengeHint()) {
-      this.reactionText = this.challengeHint();
-    }
-    if (!this.hasInteracted) return;
-
-    const integrity = this.calculateTrailIntegrity();
-    if (this.challengePhase === "disturb" && integrity <= 38) {
-      this.challengePhase = "recover";
-      this.score += 60;
-      if (this.reactionTimer < 2.1) {
-        this.setReaction("行列がほどけた。今度は立て直しを眺めよう。");
-      }
-    } else if (this.challengePhase === "recover" && integrity >= 62) {
-      this.challengePhase = "disturb";
-      this.score += 90;
-      this.combo = Math.min(9, this.combo + 2);
-      if (this.reactionTimer < 2.1) {
-        this.setReaction("立て直し成功。もう一度、別の場所を試そう。");
-      }
-    }
-  }
-
-  private challengeText(): string {
-    if (!this.hasInteracted) return "お題: 行列の肩をそっと崩す";
-    if (this.challengePhase === "disturb") return "お題: 安定度を38%以下にする";
-    return "お題: 手を止めて62%以上まで戻す";
-  }
-
-  private challengeHint(): string {
-    if (!this.hasInteracted) return "行列の流れを見て、効きそうな場所に置いてみよう";
-    if (this.challengePhase === "disturb") return "密集している曲がり角や分岐を狙うと大きく乱れる。";
-    return "次の一手を我慢して、アリが道を作り直すのを眺めよう。";
-  }
-
-  private setReaction(text: string): void {
-    this.reactionText = text;
-    this.reactionTimer = 2.8;
   }
 
   private avoidObjects(ant: Ant, dt: number): void {
@@ -302,7 +257,7 @@ export class AntColonySimulation {
       ant.heading = angle + rand(-0.8, 0.8);
       ant.speed = 70 + force * 52;
       ant.washedTtl = Math.max(ant.washedTtl, 1.4 + force * 0.9);
-      ant.memoryHeading = this.angleTo(this.routeTarget(this.activeRoute(ant.id), ant.routeIndex), ant);
+      ant.memoryHeading = this.angleTo(this.routeTarget(this.activeRoute(ant.id, ant.foodIndex), ant.routeIndex), ant);
       this.keepInWorld(ant);
     }
   }
@@ -326,14 +281,6 @@ export class AntColonySimulation {
     if (roll < 0.58) return "leaf";
     if (roll < 0.8) return "finger";
     return "pebble";
-  }
-
-  private mysteryReaction(effectKind: ToolKind, nearbyAnts: number): string {
-    if (effectKind === "pump") return nearbyAnts > 0 ? `謎の水圧。${nearbyAnts}匹が流された。` : "謎の水しぶき。でも少し外れた。";
-    if (effectKind === "water") return nearbyAnts > 0 ? `謎の湿り気。${nearbyAnts}匹が足を止めた。` : "謎の湿り気だけが残った。";
-    if (effectKind === "leaf") return nearbyAnts > 0 ? `謎の葉っぱ。${nearbyAnts}匹の道がふさがった。` : "謎の葉っぱがひらり。";
-    if (effectKind === "finger") return nearbyAnts > 0 ? `謎のなぞり跡。${nearbyAnts}匹がぐるっと迷った。` : "謎の線だけが残った。";
-    return nearbyAnts > 0 ? `謎の小石。${nearbyAnts}匹が迂回した。` : "謎の小石。静かな場所に落ちた。";
   }
 
   private avoidTerrain(ant: Ant, dt: number): void {
@@ -367,8 +314,8 @@ export class AntColonySimulation {
   private calculateTrailIntegrity(): number {
     let aligned = 0;
     let counted = 0;
-    const route = this.map.route;
     for (const ant of this.ants) {
+      const route = this.activeRoute(ant.id, ant.foodIndex);
       const segment = nearestSegment(route, ant);
       const nearRoute = segment.distance < 88;
       if (!nearRoute) continue;
@@ -382,7 +329,8 @@ export class AntColonySimulation {
 
   private spawnAnt(heading: number): void {
     const id = this.nextAntId++;
-    const route = this.activeRoute(id);
+    const foodIndex = this.pickFoodIndex(id);
+    const route = this.activeRoute(id, foodIndex);
     this.ants.push({
       id,
       x: this.nest.x + rand(-18, 18),
@@ -391,9 +339,10 @@ export class AntColonySimulation {
       speed: rand(28, 45),
       mode: "forage",
       routeIndex: 1,
+      foodIndex,
       memoryHeading: this.angleTo(this.routeTarget(route, 1), this.nest),
       cargoSize: 0,
-      cargoValue: 0,
+      cargoPieces: 0,
       washedTtl: 0,
       wiggle: Math.random() * TAU
     });
@@ -405,37 +354,38 @@ export class AntColonySimulation {
     if (!ant) {
       if (this.ants.length >= 100) return false;
       this.spawnCargoAnt();
-      this.setReaction("食べ物の近くから、大きいかけらを運ぶアリが出た。");
       return true;
     }
     ant.cargoSize = rand(9, 14);
-    ant.cargoValue = Math.round(45 + ant.cargoSize * 8);
+    ant.cargoPieces = Math.round(3 + ant.cargoSize * 0.35);
     ant.speed *= 0.82;
-    this.setReaction("大きいかけらを運ぶアリが出た。そっと見守ると高得点。");
     return true;
   }
 
   private spawnCargoAnt(): void {
     const id = this.nextAntId++;
-    const route = this.activeRoute(id);
+    const foodIndex = this.pickFoodIndex(id + 11);
+    const food = this.foods[foodIndex];
+    const route = this.activeRoute(id, foodIndex);
     this.ants.push({
       id,
-      x: this.food.x + rand(-16, 16),
-      y: this.food.y + rand(-16, 16),
-      heading: this.angleTo(route[route.length - 2], this.food) + rand(-0.35, 0.35),
+      x: food.x + rand(-16, 16),
+      y: food.y + rand(-16, 16),
+      heading: this.angleTo(route[route.length - 2], food) + rand(-0.35, 0.35),
       speed: rand(25, 34),
       mode: "return",
       routeIndex: route.length - 2,
-      memoryHeading: this.angleTo(route[route.length - 2], this.food),
+      foodIndex,
+      memoryHeading: this.angleTo(route[route.length - 2], food),
       cargoSize: rand(10, 15),
-      cargoValue: 130,
+      cargoPieces: 8,
       washedTtl: 0,
       wiggle: Math.random() * TAU
     });
   }
 
   private initialHeading(): number {
-    return this.angleTo(this.routeTarget(this.map.route, 1), this.nest) + rand(-0.35, 0.35);
+    return this.angleTo(this.routeTarget(this.transformRoute(this.map.route, this.food), 1), this.nest) + rand(-0.35, 0.35);
   }
 
   private sampleField(field: Float32Array, x: number, y: number): number {
@@ -448,18 +398,59 @@ export class AntColonySimulation {
     return route[index];
   }
 
-  private activeRoute(antId: number): Vec2[] {
+  private activeRoute(antId: number, foodIndex?: number): Vec2[] {
     const roll = seededUnit(antId + this.map.scatterSeed * 97);
+    const food = this.foods[foodIndex ?? this.pickFoodIndex(antId)];
     let threshold = 0;
     for (const branch of this.map.branches) {
       threshold += branch.weight;
-      if (roll < threshold) return branch.points;
+      if (roll < threshold) return this.transformRoute(branch.points, food);
     }
-    return this.map.route;
+    return this.transformRoute(this.map.route, food);
+  }
+
+  private transformRoute(points: Vec2[], food: Vec2): Vec2[] {
+    const nestDelta = { x: this.nest.x - this.map.nest.x, y: this.nest.y - this.map.nest.y };
+    const foodDelta = { x: food.x - this.map.food.x, y: food.y - this.map.food.y };
+    return points.map((point, index) => {
+      const t = points.length <= 1 ? 0 : index / (points.length - 1);
+      return {
+        x: clamp(point.x + lerp(nestDelta.x, foodDelta.x, t), 34, WORLD_WIDTH - 34),
+        y: clamp(point.y + lerp(nestDelta.y, foodDelta.y, t), 34, WORLD_HEIGHT - 34)
+      };
+    });
+  }
+
+  private pickFoodIndex(seed: number): number {
+    if (this.foods.length <= 1) return 0;
+    return Math.floor(seededUnit(seed + this.map.scatterSeed * 13) * this.foods.length) % this.foods.length;
   }
 
   private terrainAt(x: number, y: number): TerrainPatch | undefined {
     return this.map.terrain.find((patch) => normalizedEllipseDistance({ x, y }, patch) <= 1);
+  }
+
+  private pickStartPattern(): StartPattern {
+    const raw = START_PATTERNS[Math.floor(Math.random() * START_PATTERNS.length)];
+    return {
+      ...raw,
+      nest: this.safePoint(raw.nest),
+      foods: raw.foods.map((food) => this.safePoint(food))
+    };
+  }
+
+  private safePoint(point: Vec2): Vec2 {
+    let candidate = { ...point };
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+      const patch = this.map.terrain.find((terrain) => terrain.blocksAnts && normalizedEllipseDistance(candidate, terrain) < 1.14);
+      if (!patch) return candidate;
+      const angle = Math.atan2(candidate.y - patch.y, candidate.x - patch.x) || attempt * 0.9;
+      candidate = {
+        x: clamp(candidate.x + Math.cos(angle) * 28, 52, WORLD_WIDTH - 52),
+        y: clamp(candidate.y + Math.sin(angle) * 28, 52, WORLD_HEIGHT - 52)
+      };
+    }
+    return candidate;
   }
 
   private keepInWorld(ant: Ant): void {

@@ -34,7 +34,11 @@ export class GameScene extends Phaser.Scene {
         this.simulation.setMap(mapId);
         this.drawGround();
       },
-      onReset: () => this.simulation.reset()
+      onReset: () => {
+        this.simulation.reset();
+        this.drawGround();
+      },
+      onTimeScaleToggle: () => this.simulation.toggleTimeScale()
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.tryPlace(pointer, true));
@@ -56,12 +60,9 @@ export class GameScene extends Phaser.Scene {
     const tool = TOOL_DEFINITIONS.find((entry) => entry.kind === this.simulation.selectedTool)!;
     if (now - this.lastPlaceAt < tool.cooldownMs) return;
     this.lastPlaceAt = now;
-    const beforeScore = this.simulation.getStats().score;
     const placed = this.simulation.placeTool(pointer.worldX, pointer.worldY, this.simulation.selectedTool);
     if (placed && primaryClick) {
       this.pulse(pointer.worldX, pointer.worldY, this.simulation.selectedTool);
-      const delta = this.simulation.getStats().score - beforeScore;
-      this.floatText(pointer.worldX, pointer.worldY - 28, delta > 0 ? `+${delta}` : "効いた", 0x59694b);
     } else if (!placed && primaryClick) {
       this.deniedPulse(pointer.worldX, pointer.worldY);
       this.floatText(pointer.worldX, pointer.worldY - 18, "置けない", 0x8d5f52);
@@ -94,12 +95,14 @@ export class GameScene extends Phaser.Scene {
     this.ground.fillStyle(0x5c5148, 0.48);
     this.ground.fillCircle(this.simulation.nest.x + 3, this.simulation.nest.y + 2, 19);
 
-    this.ground.fillStyle(0xd8c97e, 1);
-    this.ground.fillCircle(this.simulation.food.x, this.simulation.food.y, 20);
-    this.ground.fillStyle(0xb69e55, 1);
-    for (let i = 0; i < 9; i += 1) {
-      const angle = (i / 9) * Math.PI * 2;
-      this.ground.fillCircle(this.simulation.food.x + Math.cos(angle) * 25, this.simulation.food.y + Math.sin(angle) * 15, 4);
+    for (const food of this.simulation.foods) {
+      this.ground.fillStyle(0xd8c97e, 1);
+      this.ground.fillCircle(food.x, food.y, 20);
+      this.ground.fillStyle(0xb69e55, 1);
+      for (let i = 0; i < 9; i += 1) {
+        const angle = (i / 9) * Math.PI * 2;
+        this.ground.fillCircle(food.x + Math.cos(angle) * 25, food.y + Math.sin(angle) * 15, 4);
+      }
     }
   }
 
