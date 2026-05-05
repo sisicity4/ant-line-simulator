@@ -29,8 +29,8 @@ export interface PlacedObject {
   x: number;
   y: number;
   radius: number;
-  ttl: number;
-  maxTtl: number;
+  age: number;
+  effectKind: ToolKind;
 }
 
 export interface SimulationStats {

@@ -68,7 +68,7 @@ export class HudController {
           )
           .join("")}
       </div>
-      <button class="speed-button" type="button" data-speed aria-pressed="false">10倍速</button>
+      <button class="speed-button" type="button" data-speed aria-label="速度を上げる">1倍速</button>
       <button class="reset-button" type="button" data-reset>リセット</button>
       <button class="research-button" type="button" data-open-research>生態ノート</button>
       <section class="research-page is-hidden" aria-label="アリの生態ノート" data-research-page>
@@ -142,10 +142,10 @@ export class HudController {
     if (meter) meter.style.width = `${this.stats.trailIntegrity}%`;
     const speedButton = this.root.querySelector<HTMLButtonElement>("[data-speed]");
     if (speedButton) {
-      const active = this.stats.timeScale === 10;
+      const active = this.stats.timeScale > 1;
       speedButton.classList.toggle("is-active", active);
       speedButton.setAttribute("aria-pressed", active ? "true" : "false");
-      speedButton.textContent = active ? "1倍速" : "10倍速";
+      speedButton.textContent = `${this.stats.timeScale}倍速`;
     }
   }
 

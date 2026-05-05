@@ -95,14 +95,24 @@ export class AntColonySimulation {
   }
 
   setTimeScale(timeScale: number): void {
-    this.timeScale = timeScale === 10 ? 10 : 1;
+    this.timeScale = clamp(timeScale, 1, 20);
   }
 
   toggleTimeScale(): void {
-    this.timeScale = this.timeScale === 1 ? 10 : 1;
+    this.timeScale = this.timeScale >= 20 ? 1 : this.timeScale + 1;
   }
 
-  placeTool(x: number, y: number, kind = this.selectedTool): boolean {
+  toggleToolAt(x: number, y: number, kind = this.selectedTool, removeExisting = true): "placed" | "removed" | "blocked" {
+    const removable = this.objectAt(x, y);
+    if (removable && removeExisting) {
+      this.objects.splice(this.objects.indexOf(removable), 1);
+      return "removed";
+    }
+    if (removable) return "blocked";
+    return this.placeTool(x, y, kind) ? "placed" : "blocked";
+  }
+
+  private placeTool(x: number, y: number, kind = this.selectedTool): boolean {
     if (Math.hypot(x - this.nest.x, y - this.nest.y) < 58 || this.foods.some((food) => Math.hypot(x - food.x, y - food.y) < 58)) {
       return false;
     }
@@ -114,15 +124,14 @@ export class AntColonySimulation {
     const mysteryEffect = kind === "mystery" ? this.pickMysteryEffect(x, y) : undefined;
     const effectKind = mysteryEffect ?? kind;
     const effectRadius = effectKind === "pump" ? 82 : effectKind === "water" ? 46 : effectKind === "leaf" ? 42 : effectKind === "finger" ? 34 : definition.radius;
-    const ttl = kind === "mystery" ? 2.8 : effectKind === "finger" ? 6 : effectKind === "water" ? 10 : effectKind === "pump" ? 2.4 : 16;
     this.objects.push({
       id: this.nextObjectId++,
       kind,
       x,
       y,
       radius: effectRadius,
-      ttl,
-      maxTtl: ttl
+      age: 0,
+      effectKind
     });
 
     const disruption = effectKind === "pump" ? 1.8 : effectKind === "water" ? 1.1 : effectKind === "finger" ? 0.86 : effectKind === "leaf" ? 0.62 : 0.45;
@@ -290,9 +299,9 @@ export class AntColonySimulation {
       if (distance > influence) continue;
 
       const away = Math.atan2(dy, dx);
-      const strength = (1 - distance / influence) * (object.kind === "leaf" ? 3.2 : object.kind === "pebble" ? 4.1 : 2.1);
+      const strength = (1 - distance / influence) * (object.effectKind === "leaf" ? 3.2 : object.effectKind === "pebble" ? 4.1 : 2.1);
       ant.heading = wrapAngle(ant.heading + signedAngle(ant.heading, away) * strength * dt);
-      if (object.kind === "water" || object.kind === "finger") {
+      if (object.effectKind === "water" || object.effectKind === "finger" || object.effectKind === "pump") {
         ant.heading = wrapAngle(ant.heading + rand(-1.1, 1.1) * dt * 6);
       }
     }
@@ -353,16 +362,27 @@ export class AntColonySimulation {
   }
 
   private stepObjects(dt: number): void {
-    for (let i = this.objects.length - 1; i >= 0; i -= 1) {
-      const object = this.objects[i];
-      object.ttl -= dt;
-      if (object.kind === "water" || object.kind === "finger") {
-        this.pheromones.addDisruption(object.x, object.y, object.radius, object.kind === "water" ? 0.018 : 0.012);
-      }
-      if (object.ttl <= 0) {
-        this.objects.splice(i, 1);
+    for (const object of this.objects) {
+      object.age += dt;
+      if (object.effectKind === "water" || object.effectKind === "finger" || object.effectKind === "pump" || object.kind === "mystery") {
+        const amount = object.effectKind === "pump" ? 0.014 : object.effectKind === "water" ? 0.01 : object.effectKind === "finger" ? 0.008 : 0.006;
+        this.pheromones.addDisruption(object.x, object.y, object.radius, amount);
       }
     }
+  }
+
+  private objectAt(x: number, y: number): PlacedObject | undefined {
+    let nearest: PlacedObject | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const object of this.objects) {
+      const distance = Math.hypot(object.x - x, object.y - y);
+      const hitRadius = Math.max(26, object.radius * 0.72);
+      if (distance < hitRadius && distance < nearestDistance) {
+        nearest = object;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
   }
 
   private calculateTrailIntegrity(): number {

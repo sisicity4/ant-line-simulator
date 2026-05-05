@@ -73,10 +73,13 @@ export class GameScene extends Phaser.Scene {
     const tool = TOOL_DEFINITIONS.find((entry) => entry.kind === this.simulation.selectedTool)!;
     if (now - this.lastPlaceAt < tool.cooldownMs) return;
     this.lastPlaceAt = now;
-    const placed = this.simulation.placeTool(pointer.worldX, pointer.worldY, this.simulation.selectedTool);
-    if (placed && primaryClick) {
+    const result = this.simulation.toggleToolAt(pointer.worldX, pointer.worldY, this.simulation.selectedTool, primaryClick);
+    if (result === "placed" && primaryClick) {
       this.pulse(pointer.worldX, pointer.worldY, this.simulation.selectedTool);
-    } else if (!placed && primaryClick) {
+    } else if (result === "removed" && primaryClick) {
+      this.removePulse(pointer.worldX, pointer.worldY);
+      this.floatText(pointer.worldX, pointer.worldY - 18, "取った", 0x59694b);
+    } else if (result === "blocked" && primaryClick) {
       this.deniedPulse(pointer.worldX, pointer.worldY);
       this.floatText(pointer.worldX, pointer.worldY - 18, "置けない", 0x8d5f52);
     }
@@ -309,7 +312,7 @@ export class GameScene extends Phaser.Scene {
   private drawObjects(): void {
     this.objectLayer.clear();
     for (const object of this.simulation.objects) {
-      const alpha = Math.min(1, object.ttl / Math.min(object.maxTtl, 5));
+      const alpha = Math.min(1, 0.66 + object.age * 1.8);
       if (object.kind === "pebble") this.drawPebble(object, alpha);
       if (object.kind === "leaf") this.drawLeaf(object, alpha);
       if (object.kind === "water") this.drawWater(object, alpha);
@@ -382,7 +385,7 @@ export class GameScene extends Phaser.Scene {
     this.objectLayer.fillCircle(object.x, object.y, object.radius * 1.18);
     this.objectLayer.lineStyle(4, 0xc7d8d6, 0.62 * alpha);
     for (let i = 0; i < 9; i += 1) {
-      const angle = (i / 9) * Math.PI * 2 + object.ttl * 2.4;
+      const angle = (i / 9) * Math.PI * 2 + object.age * 2.4;
       const inner = object.radius * 0.18;
       const outer = object.radius * (0.64 + (i % 3) * 0.12);
       this.objectLayer.lineBetween(
@@ -435,6 +438,18 @@ export class GameScene extends Phaser.Scene {
       alpha: 0,
       duration: 300,
       ease: "Sine.easeOut",
+      onComplete: () => ring.destroy()
+    });
+  }
+
+  private removePulse(x: number, y: number): void {
+    const ring = this.add.circle(x, y, 34).setStrokeStyle(2, 0x59694b, 0.55).setFillStyle(0x59694b, 0.03);
+    this.tweens.add({
+      targets: ring,
+      radius: 10,
+      alpha: 0,
+      duration: 260,
+      ease: "Sine.easeIn",
       onComplete: () => ring.destroy()
     });
   }
