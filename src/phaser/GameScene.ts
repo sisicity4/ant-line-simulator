@@ -17,6 +17,7 @@ export class GameScene extends Phaser.Scene {
   private objectLayer!: Phaser.GameObjects.Graphics;
   private antLayer!: Phaser.GameObjects.Graphics;
   private fxLayer!: Phaser.GameObjects.Graphics;
+  private previewLayer!: Phaser.GameObjects.Graphics;
   private lastPlaceAt = 0;
   private preferredTimeScale = 1;
 
@@ -31,6 +32,7 @@ export class GameScene extends Phaser.Scene {
     this.objectLayer = this.add.graphics();
     this.antLayer = this.add.graphics();
     this.fxLayer = this.add.graphics();
+    this.previewLayer = this.add.graphics();
 
     this.drawGround();
     this.hud.mount({
@@ -378,6 +380,7 @@ export class GameScene extends Phaser.Scene {
     this.drawPheromones();
     this.drawObjects();
     this.drawAnts();
+    this.drawPointerPreview();
   }
 
   private drawPheromones(): void {
@@ -401,7 +404,33 @@ export class GameScene extends Phaser.Scene {
           this.pheromoneLayer.fillStyle(0x7894a0, Math.min(0.18, disruption * 0.11));
           this.pheromoneLayer.fillCircle((x + 0.5) * grid.cellSize, (y + 0.5) * grid.cellSize, 7);
         }
+        if (x % 4 === 0 && y % 4 === 0 && food + home > 0.22 && disruption < 0.2) {
+          this.pheromoneLayer.fillStyle(0xd4c174, Math.min(0.18, (food + home) * 0.045));
+          this.pheromoneLayer.fillCircle((x + 0.5) * grid.cellSize, (y + 0.5) * grid.cellSize, 3.2);
+        }
       }
+    }
+  }
+
+  private drawPointerPreview(): void {
+    this.previewLayer.clear();
+    const pointer = this.input.activePointer;
+    if (!pointer || pointer.worldX < 0 || pointer.worldX > this.simulation.width || pointer.worldY < 0 || pointer.worldY > this.simulation.height) return;
+    const tool = TOOL_DEFINITIONS.find((entry) => entry.kind === this.simulation.selectedTool);
+    if (!tool) return;
+    const removing = this.simulation.hasObjectAt(pointer.worldX, pointer.worldY);
+    const color = removing ? 0x59694b : this.toolColor(this.simulation.selectedTool);
+    const radius = removing ? 24 : tool.radius;
+    this.previewLayer.fillStyle(color, removing ? 0.08 : 0.045);
+    this.previewLayer.fillCircle(pointer.worldX, pointer.worldY, radius);
+    this.previewLayer.lineStyle(removing ? 3 : 2, color, removing ? 0.72 : 0.38);
+    this.previewLayer.strokeCircle(pointer.worldX, pointer.worldY, radius);
+    if (removing) {
+      this.previewLayer.lineBetween(pointer.worldX - 9, pointer.worldY, pointer.worldX + 9, pointer.worldY);
+      this.previewLayer.lineBetween(pointer.worldX, pointer.worldY - 9, pointer.worldX, pointer.worldY + 9);
+    } else {
+      this.previewLayer.lineStyle(1, 0xefe7d4, 0.22);
+      this.previewLayer.strokeCircle(pointer.worldX, pointer.worldY, Math.max(8, radius * 0.42));
     }
   }
 
@@ -515,7 +544,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pulse(x: number, y: number, kind: ToolKind): void {
-    const color = kind === "mystery" ? 0x7d7890 : kind === "pump" || kind === "water" ? 0x8ba6ad : kind === "leaf" ? 0x87936d : kind === "finger" ? 0xb78f79 : 0x8f897d;
+    const color = this.toolColor(kind);
     const ring = this.add.circle(x, y, 8).setStrokeStyle(2, color, 0.6).setFillStyle(color, 0.08);
     this.tweens.add({
       targets: ring,
@@ -525,6 +554,28 @@ export class GameScene extends Phaser.Scene {
       ease: "Sine.easeOut",
       onComplete: () => ring.destroy()
     });
+    const dotCount = kind === "pump" ? 14 : kind === "mystery" ? 11 : 7;
+    for (let i = 0; i < dotCount; i += 1) {
+      const angle = (i / dotCount) * Math.PI * 2 + seededRange(x + y, i, -0.2, 0.2);
+      const dot = this.add.circle(x, y, 2.2, color, 0.36);
+      this.tweens.add({
+        targets: dot,
+        x: x + Math.cos(angle) * seededRange(x, i, 18, kind === "pump" ? 92 : 42),
+        y: y + Math.sin(angle) * seededRange(y, i, 18, kind === "pump" ? 92 : 42),
+        alpha: 0,
+        duration: kind === "pump" ? 620 : 420,
+        ease: "Sine.easeOut",
+        onComplete: () => dot.destroy()
+      });
+    }
+  }
+
+  private toolColor(kind: ToolKind): number {
+    if (kind === "mystery") return 0x7d7890;
+    if (kind === "pump" || kind === "water") return 0x8ba6ad;
+    if (kind === "leaf") return 0x87936d;
+    if (kind === "finger") return 0xb78f79;
+    return 0x8f897d;
   }
 
   private deniedPulse(x: number, y: number): void {

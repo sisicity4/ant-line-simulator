@@ -112,6 +112,10 @@ export class AntColonySimulation {
     return this.placeTool(x, y, kind) ? "placed" : "blocked";
   }
 
+  hasObjectAt(x: number, y: number): boolean {
+    return Boolean(this.objectAt(x, y));
+  }
+
   private placeTool(x: number, y: number, kind = this.selectedTool): boolean {
     if (Math.hypot(x - this.nest.x, y - this.nest.y) < 58 || this.foods.some((food) => Math.hypot(x - food.x, y - food.y) < 58)) {
       return false;
