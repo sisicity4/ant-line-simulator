@@ -427,36 +427,12 @@ export class AntColonySimulation {
     const candidates = this.ants.filter((ant) => ant.mode === "return" && ant.cargoSize === 0);
     const ant = candidates[Math.floor(Math.random() * candidates.length)];
     if (!ant) {
-      if (this.ants.length >= 100) return false;
-      this.spawnCargoAnt();
-      return true;
+      return false;
     }
     ant.cargoSize = rand(9, 14);
     ant.cargoPieces = Math.round(3 + ant.cargoSize * 0.35);
     ant.speed *= 0.82;
     return true;
-  }
-
-  private spawnCargoAnt(): void {
-    const id = this.nextAntId++;
-    const foodIndex = this.pickFoodIndex(id + 11);
-    const food = this.foods[foodIndex];
-    const route = this.activeRoute(id, foodIndex);
-    this.ants.push({
-      id,
-      x: food.x + rand(-16, 16),
-      y: food.y + rand(-16, 16),
-      heading: this.angleTo(route[route.length - 2], food) + rand(-0.35, 0.35),
-      speed: rand(25, 34),
-      mode: "return",
-      routeIndex: route.length - 2,
-      foodIndex,
-      memoryHeading: this.angleTo(route[route.length - 2], food),
-      cargoSize: rand(10, 15),
-      cargoPieces: 8,
-      washedTtl: 0,
-      wiggle: Math.random() * TAU
-    });
   }
 
   private initialHeading(): number {
