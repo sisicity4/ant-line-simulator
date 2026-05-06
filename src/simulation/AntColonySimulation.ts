@@ -269,14 +269,17 @@ export class AntColonySimulation {
     ant.lastTargetDistance = targetDistance;
 
     const recovery = clamp((ant.stalledTime - 1.4) / 2.6, 0, 1);
-    const offRoute = clamp((routeSegment.distance - 36) / 105, 0, 1);
-    const routeRejoinTurn = offRoute > 0 ? signedAngle(ant.heading, Math.atan2(routeSegment.closest.y - ant.y, routeSegment.closest.x - ant.x)) * (0.18 + recovery * 0.64) : 0;
-    const weberTurn = ((right - left) / (right + left + 0.08)) * 2.25 * (1 - recovery * 0.42);
-    const targetTurn = signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) * (0.5 + offRoute * 0.22 + recovery * 0.86) * ant.routeStickiness;
-    const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * 0.16 * ant.routeStickiness;
-    const noise = rand(-1.35, 1.35) * (0.42 + frontDisruption * 1.7 + ant.washedTtl * 0.55) * (1 - recovery * 0.56);
+    const offRoute = clamp((routeSegment.distance - 22) / 92, 0, 1);
+    const matureTrail = clamp(this.deliveredPieces / 90, 0, 1);
+    const routeRejoinTurn =
+      routeSegment.distance > 16 ? signedAngle(ant.heading, Math.atan2(routeSegment.closest.y - ant.y, routeSegment.closest.x - ant.x)) * (0.28 + offRoute * 0.42 + recovery * 0.72) : 0;
+    const weberTurn = ((right - left) / (right + left + 0.08)) * 2.15 * (1 - recovery * 0.42);
+    const targetTurn = signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) * (0.62 + offRoute * 0.34 + recovery * 0.92 + matureTrail * 0.12) * ant.routeStickiness;
+    const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * (0.2 + matureTrail * 0.08) * ant.routeStickiness;
+    const corridorTurn = signedAngle(ant.heading, ant.mode === "forage" ? routeSegment.angle : wrapAngle(routeSegment.angle + Math.PI)) * (0.08 + matureTrail * 0.18) * (1 - offRoute * 0.35);
+    const noise = rand(-1.35, 1.35) * (0.34 + frontDisruption * 1.45 + ant.washedTtl * 0.5) * (1 - recovery * 0.56) * (1 - matureTrail * 0.26);
 
-    ant.heading = wrapAngle(ant.heading + (weberTurn + targetTurn + memoryTurn + routeRejoinTurn + noise) * dt);
+    ant.heading = wrapAngle(ant.heading + (weberTurn + targetTurn + memoryTurn + routeRejoinTurn + corridorTurn + noise) * dt);
     if (ant.stalledTime > 7) {
       this.recoverStalledAnt(ant, route, routeSegment);
     }
@@ -422,19 +425,21 @@ export class AntColonySimulation {
   }
 
   private calculateTrailIntegrity(): number {
-    let aligned = 0;
+    let score = 0;
     let counted = 0;
     for (const ant of this.ants) {
       const route = this.activeRoute(ant.id, ant.foodIndex);
       const segment = nearestSegment(route, ant);
-      const nearRoute = segment.distance < 88;
+      const nearRoute = segment.distance < 118;
       if (!nearRoute) continue;
       counted += 1;
       const expected = ant.mode === "forage" ? segment.angle : wrapAngle(segment.angle + Math.PI);
       const difference = Math.abs(signedAngle(ant.heading, expected));
-      if (difference < 0.55) aligned += 1;
+      const distanceScore = clamp(1 - segment.distance / 118, 0, 1);
+      const headingScore = clamp(1 - difference / 1.15, 0, 1);
+      score += distanceScore * 0.46 + headingScore * 0.54;
     }
-    return counted === 0 ? 0 : Math.round((aligned / counted) * 100);
+    return counted === 0 ? 0 : Math.round((score / counted) * 100);
   }
 
   private spawnAnt(heading: number): void {
