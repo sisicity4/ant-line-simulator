@@ -40,9 +40,11 @@ export class HudController {
         </div>
         <div class="telemetry-grid">
           <span>運んだカケラ <strong data-pieces>0</strong></span>
+          <span>大物運搬 <strong data-cargo>0</strong></span>
+        </div>
+        <div class="detail-grid" aria-hidden="true">
           <span>活動中 <strong data-ants>0</strong></span>
           <span>総アリ <strong data-total-ants>0</strong></span>
-          <span>大物 <strong data-cargo>0</strong></span>
           <span>初期 <strong data-pattern>---</strong></span>
         </div>
       </div>

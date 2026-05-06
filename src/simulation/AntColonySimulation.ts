@@ -46,9 +46,11 @@ export class AntColonySimulation {
   private nextObjectId = 1;
   private spawnTimer = 0;
   private cargoTimer = 4;
+  private dominantRefreshTimer = 0;
   private pattern: StartPattern = START_PATTERNS[0];
   private patternRunId = 0;
   private readonly routeCache = new Map<string, Vec2[]>();
+  private readonly dominantRouteCache = new Map<number, { route: Vec2[]; branchIndex: number; score: number }>();
 
   constructor() {
     this.reset();
@@ -70,6 +72,7 @@ export class AntColonySimulation {
     this.pattern = this.pickStartPattern();
     this.patternRunId += 1;
     this.routeCache.clear();
+    this.dominantRouteCache.clear();
     this.ants.length = 0;
     this.objects.length = 0;
     this.pheromones.food.fill(0);
@@ -78,6 +81,7 @@ export class AntColonySimulation {
     this.deliveredPieces = 0;
     this.spawnTimer = 0;
     this.cargoTimer = 4;
+    this.dominantRefreshTimer = 0;
     this.nextObjectId = 1;
     for (let i = 0; i < 52; i += 1) {
       this.spawnAnt(this.initialHeading());
@@ -114,6 +118,7 @@ export class AntColonySimulation {
     if (removable && removeExisting) {
       this.objects.splice(this.objects.indexOf(removable), 1);
       this.routeCache.clear();
+      this.dominantRouteCache.clear();
       this.refreshAntRouteMemory();
       return "removed";
     }
@@ -147,6 +152,7 @@ export class AntColonySimulation {
       effectKind
     });
     this.routeCache.clear();
+    this.dominantRouteCache.clear();
     this.refreshAntRouteMemory();
 
     const disruption = effectKind === "pump" ? 1.8 : effectKind === "water" ? 1.1 : effectKind === "finger" ? 0.86 : effectKind === "leaf" ? 0.62 : 0.45;
@@ -230,18 +236,11 @@ export class AntColonySimulation {
   }
 
   getDominantTrail(): Vec2[] {
-    const routes = this.foods.flatMap((food) => [this.applyObstacleDetours(this.transformRoute(this.map.route, food)), ...this.map.branches.map((branch) => this.applyObstacleDetours(this.transformRoute(branch.points, food)))]);
-    if (routes.length === 0) return [];
-    let bestRoute = routes[0];
-    let bestScore = Number.NEGATIVE_INFINITY;
-    for (const route of routes) {
-      const score = this.scoreTrailRoute(route);
-      if (score > bestScore) {
-        bestScore = score;
-        bestRoute = route;
-      }
-    }
-    return bestRoute;
+    return this.cachedDominantRouteForFood(0).route;
+  }
+
+  getDominantTrailStrength(): number {
+    return clamp(this.cachedDominantRouteForFood(0).score * 2.8 + this.deliveredPieces / 140, 0, 1);
   }
 
   private stepOnce(deltaMs: number): void {
@@ -258,6 +257,11 @@ export class AntColonySimulation {
 
     this.pheromones.step(dt * 60);
     this.stepObjects(dt);
+    this.dominantRefreshTimer += dt;
+    if (this.dominantRefreshTimer >= 0.45 || this.dominantRouteCache.size === 0) {
+      this.dominantRefreshTimer = 0;
+      this.refreshDominantRoutes();
+    }
     for (const ant of this.ants) {
       this.stepAnt(ant, dt);
     }
@@ -283,16 +287,17 @@ export class AntColonySimulation {
     else ant.stalledTime = Math.max(0, ant.stalledTime - dt * 2.2);
     ant.lastTargetDistance = targetDistance;
 
-    const recovery = clamp((ant.stalledTime - 1.4) / 2.6, 0, 1);
-    const offRoute = clamp((routeSegment.distance - 22) / 92, 0, 1);
-    const matureTrail = clamp(this.deliveredPieces / 90, 0, 1);
+    const recovery = clamp((ant.stalledTime - 1.1) / 2.1, 0, 1);
+    const offRoute = clamp((routeSegment.distance - 18) / 82, 0, 1);
+    const localTrailStrength = clamp((left + right) * 0.75, 0, 1);
+    const matureTrail = clamp(this.deliveredPieces / 70, 0, 1);
     const routeRejoinTurn =
-      routeSegment.distance > 16 ? signedAngle(ant.heading, Math.atan2(routeSegment.closest.y - ant.y, routeSegment.closest.x - ant.x)) * (0.28 + offRoute * 0.42 + recovery * 0.72) : 0;
-    const weberTurn = ((right - left) / (right + left + 0.08)) * 2.15 * (1 - recovery * 0.42);
-    const targetTurn = signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) * (0.62 + offRoute * 0.34 + recovery * 0.92 + matureTrail * 0.12) * ant.routeStickiness;
-    const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * (0.2 + matureTrail * 0.08) * ant.routeStickiness;
-    const corridorTurn = signedAngle(ant.heading, ant.mode === "forage" ? routeSegment.angle : wrapAngle(routeSegment.angle + Math.PI)) * (0.08 + matureTrail * 0.18) * (1 - offRoute * 0.35);
-    const noise = rand(-1.35, 1.35) * (0.34 + frontDisruption * 1.45 + ant.washedTtl * 0.5) * (1 - recovery * 0.56) * (1 - matureTrail * 0.26);
+      routeSegment.distance > 12 ? signedAngle(ant.heading, Math.atan2(routeSegment.closest.y - ant.y, routeSegment.closest.x - ant.x)) * (0.36 + offRoute * 0.56 + recovery * 0.9) : 0;
+    const weberTurn = ((right - left) / (right + left + 0.08)) * 2.05 * (1 - recovery * 0.42);
+    const targetTurn = signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) * (0.72 + offRoute * 0.44 + recovery * 1.02 + matureTrail * 0.22) * ant.routeStickiness;
+    const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * (0.24 + matureTrail * 0.12 + localTrailStrength * 0.08) * ant.routeStickiness;
+    const corridorTurn = signedAngle(ant.heading, ant.mode === "forage" ? routeSegment.angle : wrapAngle(routeSegment.angle + Math.PI)) * (0.12 + matureTrail * 0.26 + localTrailStrength * 0.12) * (1 - offRoute * 0.25);
+    const noise = rand(-1.35, 1.35) * (0.28 + frontDisruption * 1.35 + ant.washedTtl * 0.48) * (1 - recovery * 0.6) * (1 - matureTrail * 0.34) * (1 - localTrailStrength * 0.26);
 
     ant.heading = wrapAngle(ant.heading + (weberTurn + targetTurn + memoryTurn + routeRejoinTurn + corridorTurn + noise) * dt);
     if (ant.stalledTime > 7) {
@@ -510,7 +515,9 @@ export class AntColonySimulation {
   private activeRoute(antId: number, foodIndex?: number): Vec2[] {
     const roll = seededUnit(antId + this.map.scatterSeed * 97);
     const resolvedFoodIndex = foodIndex ?? this.pickFoodIndex(antId);
-    const branchIndex = this.pickBranchIndex(roll);
+    const dominant = this.cachedDominantRouteForFood(resolvedFoodIndex);
+    const convergence = clamp(this.deliveredPieces / 120 + dominant.score * 1.6, 0, 0.92);
+    const branchIndex = roll < convergence ? dominant.branchIndex : this.pickBranchIndex(roll);
     const cacheKey = `${this.patternRunId}:${this.map.id}:${resolvedFoodIndex}:${branchIndex}`;
     const cached = this.routeCache.get(cacheKey);
     if (cached) return cached;
@@ -519,6 +526,35 @@ export class AntColonySimulation {
     const route = this.applyObstacleDetours(this.transformRoute(points, food));
     this.routeCache.set(cacheKey, route);
     return route;
+  }
+
+  private cachedDominantRouteForFood(foodIndex: number): { route: Vec2[]; branchIndex: number; score: number } {
+    const cached = this.dominantRouteCache.get(foodIndex);
+    if (cached) return cached;
+    const calculated = this.calculateDominantRouteForFood(foodIndex);
+    this.dominantRouteCache.set(foodIndex, calculated);
+    return calculated;
+  }
+
+  private refreshDominantRoutes(): void {
+    this.dominantRouteCache.clear();
+    for (let foodIndex = 0; foodIndex < this.foods.length; foodIndex += 1) {
+      this.dominantRouteCache.set(foodIndex, this.calculateDominantRouteForFood(foodIndex));
+    }
+  }
+
+  private calculateDominantRouteForFood(foodIndex: number): { route: Vec2[]; branchIndex: number; score: number } {
+    const food = this.foods[clamp(foodIndex, 0, this.foods.length - 1)] ?? this.food;
+    const candidates = [
+      { route: this.applyObstacleDetours(this.transformRoute(this.map.route, food)), branchIndex: -1 },
+      ...this.map.branches.map((branch, index) => ({ route: this.applyObstacleDetours(this.transformRoute(branch.points, food)), branchIndex: index }))
+    ];
+    let best = { ...candidates[0], score: Number.NEGATIVE_INFINITY };
+    for (const candidate of candidates) {
+      const score = this.scoreTrailRoute(candidate.route);
+      if (score > best.score) best = { ...candidate, score };
+    }
+    return best;
   }
 
   private scoreTrailRoute(route: Vec2[]): number {
