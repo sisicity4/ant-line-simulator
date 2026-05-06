@@ -254,6 +254,18 @@ canvas {
   display: flex;
   gap: 4px;
   pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  z-index: 7;
+}
+
+.speed-button:hover + .speed-presets,
+.speed-button:focus-visible + .speed-presets {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .speed-presets span {
