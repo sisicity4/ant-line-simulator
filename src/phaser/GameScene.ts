@@ -125,21 +125,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawMapRoutes(map: MapPreset): void {
-    const routes = this.simulation.getDisplayRoutes();
-    for (let i = 0; i < routes.length; i += 1) {
-      this.ground.lineStyle(2, i % (map.branches.length + 1) === 0 ? 0x8f826d : 0x738065, i % (map.branches.length + 1) === 0 ? 0.22 : 0.13);
-      this.drawSpline(routes[i], i % (map.branches.length + 1) === 0 ? 56 : 44);
-    }
-
     if (map.id === "scramble") {
       this.drawScrambleCrosswalks();
     }
-  }
-
-  private drawSpline(points: Vec2[], divisions: number): void {
-    if (points.length < 2) return;
-    const path = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
-    path.draw(this.ground, divisions);
   }
 
   private drawTerrain(map: MapPreset): void {
@@ -410,6 +398,24 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+    this.drawDominantTrail();
+  }
+
+  private drawDominantTrail(): void {
+    const trail = this.simulation.getDominantTrail();
+    if (trail.length < 2) return;
+    this.pheromoneLayer.lineStyle(8, 0xd8c77a, 0.16);
+    this.drawSplineOnLayer(this.pheromoneLayer, trail, 76);
+    this.pheromoneLayer.lineStyle(3, 0x7f8b62, 0.44);
+    this.drawSplineOnLayer(this.pheromoneLayer, trail, 76);
+    this.pheromoneLayer.lineStyle(1, 0xf1e3a4, 0.6);
+    this.drawSplineOnLayer(this.pheromoneLayer, trail, 76);
+  }
+
+  private drawSplineOnLayer(layer: Phaser.GameObjects.Graphics, points: Vec2[], divisions: number): void {
+    if (points.length < 2) return;
+    const path = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
+    path.draw(layer, divisions);
   }
 
   private drawPointerPreview(): void {

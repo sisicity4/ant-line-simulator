@@ -229,6 +229,21 @@ export class AntColonySimulation {
     return this.foods.flatMap((food) => [this.transformRoute(this.map.route, food), ...this.map.branches.map((branch) => this.transformRoute(branch.points, food))]);
   }
 
+  getDominantTrail(): Vec2[] {
+    const routes = this.foods.flatMap((food) => [this.applyObstacleDetours(this.transformRoute(this.map.route, food)), ...this.map.branches.map((branch) => this.applyObstacleDetours(this.transformRoute(branch.points, food)))]);
+    if (routes.length === 0) return [];
+    let bestRoute = routes[0];
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const route of routes) {
+      const score = this.scoreTrailRoute(route);
+      if (score > bestScore) {
+        bestScore = score;
+        bestRoute = route;
+      }
+    }
+    return bestRoute;
+  }
+
   private stepOnce(deltaMs: number): void {
     const dt = Math.min(0.05, deltaMs / 1000);
     this.spawnTimer += dt;
@@ -504,6 +519,26 @@ export class AntColonySimulation {
     const route = this.applyObstacleDetours(this.transformRoute(points, food));
     this.routeCache.set(cacheKey, route);
     return route;
+  }
+
+  private scoreTrailRoute(route: Vec2[]): number {
+    if (route.length < 2) return 0;
+    let score = 0;
+    let samples = 0;
+    for (let i = 0; i < route.length - 1; i += 1) {
+      const a = route[i];
+      const b = route[i + 1];
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const steps = Math.max(2, Math.ceil(length / 24));
+      for (let step = 0; step <= steps; step += 1) {
+        const t = step / steps;
+        const x = lerp(a.x, b.x, t);
+        const y = lerp(a.y, b.y, t);
+        score += this.pheromones.sampleFood(x, y) + this.pheromones.sampleHome(x, y) - this.pheromones.sampleDisruption(x, y) * 0.18;
+        samples += 1;
+      }
+    }
+    return samples === 0 ? 0 : score / samples;
   }
 
   private applyObstacleDetours(route: Vec2[]): Vec2[] {
