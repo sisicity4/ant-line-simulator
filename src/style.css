@@ -113,12 +113,30 @@ canvas {
 }
 
 .meter-fill {
+  --speed-multiplier: 1;
+  --speed-glint-duration: 2.2s;
+  --speed-effect-alpha: 1;
   display: block;
+  position: relative;
   width: 0;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #9d8f6a, #7f9678);
   transition: width 160ms ease;
+}
+
+.meter-glint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(115deg, rgba(250, 247, 235, 0.08) 0 8px, rgba(250, 247, 235, 0.28) 8px 14px, rgba(250, 247, 235, 0.08) 14px 22px);
+  transform: translateX(-100%);
+  animation: meter-flow var(--speed-glint-duration) linear infinite;
+  opacity: 0;
+}
+
+.meter-fill.is-boosted .meter-glint {
+  opacity: var(--speed-effect-alpha);
 }
 
 .telemetry-grid {
@@ -226,6 +244,67 @@ canvas {
   right: 112px;
   bottom: 20px;
   padding: 0 14px;
+  overflow: hidden;
+}
+
+.speed-presets {
+  position: absolute;
+  right: 112px;
+  bottom: 66px;
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.speed-presets span {
+  min-width: 34px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5f574e;
+  background: rgba(232, 224, 203, 0.7);
+  border: 1px solid rgba(75, 68, 57, 0.18);
+}
+
+.speed-presets span.is-active {
+  color: #44533f;
+  background: rgba(242, 234, 212, 0.95);
+  border-color: rgba(106, 128, 88, 0.6);
+}
+
+.speed-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.3) 42%, transparent 68%);
+  transform: translateX(-135%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.speed-button.is-active::after {
+  animation: speed-sweep 1.5s ease-out infinite;
+  opacity: 1;
+}
+
+@keyframes meter-flow {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes speed-sweep {
+  from {
+    transform: translateX(-135%);
+  }
+  to {
+    transform: translateX(135%);
+  }
 }
 
 .reset-button {
@@ -400,6 +479,14 @@ canvas {
   .speed-button {
     right: 100px;
     bottom: 76px;
+  }
+
+  .speed-presets {
+    right: 100px;
+    bottom: 122px;
+    max-width: calc(100vw - 124px);
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .research-button {

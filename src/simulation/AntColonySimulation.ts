@@ -4,6 +4,7 @@ import type { Ant, MapPreset, PlacedObject, SimulationDebugSnapshot, SimulationS
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
+const TIME_SCALE_STEPS = [1, 3, 5, 10, 20] as const;
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   { kind: "pebble", label: "小石", icon: "●", radius: 28, cooldownMs: 160 },
@@ -95,11 +96,17 @@ export class AntColonySimulation {
   }
 
   setTimeScale(timeScale: number): void {
-    this.timeScale = clamp(timeScale, 1, 20);
+    const nearest = TIME_SCALE_STEPS.reduce(
+      (best, current) => (Math.abs(current - timeScale) < Math.abs(best - timeScale) ? current : best),
+      TIME_SCALE_STEPS[0]
+    );
+    this.timeScale = nearest;
   }
 
   toggleTimeScale(): void {
-    this.timeScale = this.timeScale >= 20 ? 1 : this.timeScale + 1;
+    const currentIndex = TIME_SCALE_STEPS.indexOf(this.timeScale as (typeof TIME_SCALE_STEPS)[number]);
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % TIME_SCALE_STEPS.length;
+    this.timeScale = TIME_SCALE_STEPS[nextIndex];
   }
 
   toggleToolAt(x: number, y: number, kind = this.selectedTool, removeExisting = true): "placed" | "removed" | "blocked" {

@@ -35,7 +35,7 @@ export class HudController {
       <div class="hud hud-top">
         <div class="meter-group">
           <span class="meter-label">行列安定度</span>
-          <span class="meter"><span class="meter-fill" data-meter></span></span>
+          <span class="meter"><span class="meter-fill" data-meter><span class="meter-glint"></span></span></span>
           <strong data-integrity>0%</strong>
         </div>
         <div class="telemetry-grid">
@@ -69,7 +69,14 @@ export class HudController {
           )
           .join("")}
       </div>
-      <button class="speed-button" type="button" data-speed aria-label="速度を上げる">1倍速</button>
+      <button class="speed-button" type="button" data-speed aria-label="速度を切り替える">1倍速</button>
+      <div class="speed-presets" aria-hidden="true">
+        <span data-speed-preset="1">1x</span>
+        <span data-speed-preset="3">3x</span>
+        <span data-speed-preset="5">5x</span>
+        <span data-speed-preset="10">10x</span>
+        <span data-speed-preset="20">20x</span>
+      </div>
       <button class="reset-button" type="button" data-reset>リセット</button>
       <button class="research-button" type="button" data-open-research>生態ノート</button>
       <section class="research-page is-hidden" aria-label="アリの生態ノート" data-research-page>
@@ -141,13 +148,22 @@ export class HudController {
     this.setText("[data-pattern]", this.stats.patternName);
     this.setText("[data-integrity]", `${this.stats.trailIntegrity}%`);
     const meter = this.root.querySelector<HTMLSpanElement>("[data-meter]");
-    if (meter) meter.style.width = `${this.stats.trailIntegrity}%`;
+    if (meter) {
+      meter.style.width = `${this.stats.trailIntegrity}%`;
+      meter.style.setProperty("--speed-multiplier", this.stats.timeScale.toString());
+      meter.style.setProperty("--speed-glint-duration", `${Math.max(0.14, 2.2 / this.stats.timeScale)}s`);
+      meter.style.setProperty("--speed-effect-alpha", this.stats.timeScale >= 10 ? "0.65" : "1");
+      meter.classList.toggle("is-boosted", this.stats.timeScale > 1);
+    }
     const speedButton = this.root.querySelector<HTMLButtonElement>("[data-speed]");
     if (speedButton) {
       const active = this.stats.timeScale > 1;
       speedButton.classList.toggle("is-active", active);
       speedButton.setAttribute("aria-pressed", active ? "true" : "false");
       speedButton.textContent = `${this.stats.timeScale}倍速`;
+    }
+    for (const preset of this.root.querySelectorAll<HTMLElement>("[data-speed-preset]")) {
+      preset.classList.toggle("is-active", preset.dataset.speedPreset === this.stats.timeScale.toString());
     }
   }
 
