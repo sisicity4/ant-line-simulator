@@ -21,6 +21,9 @@ export interface Ant {
   cargoPieces: number;
   washedTtl: number;
   wiggle: number;
+  lastTargetDistance: number;
+  stalledTime: number;
+  routeStickiness: number;
 }
 
 export interface PlacedObject {
