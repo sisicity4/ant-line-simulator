@@ -24,6 +24,9 @@ export interface Ant {
   lastTargetDistance: number;
   stalledTime: number;
   routeStickiness: number;
+  pheromoneSensitivity: number;
+  explorationNoise: number;
+  shortcutBias: number;
 }
 
 export interface PlacedObject {
@@ -34,6 +37,9 @@ export interface PlacedObject {
   radius: number;
   age: number;
   effectKind: ToolKind;
+  rotation: number;
+  stretch: number;
+  variantSeed: number;
 }
 
 export interface SimulationStats {

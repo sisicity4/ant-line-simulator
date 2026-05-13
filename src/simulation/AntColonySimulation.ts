@@ -5,6 +5,7 @@ import type { Ant, MapPreset, PlacedObject, SimulationDebugSnapshot, SimulationS
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
 const TIME_SCALE_STEPS = [1, 3, 5, 10, 20] as const;
+const BASE_SPEED_BOOST = 1.28;
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   { kind: "pebble", label: "小石", icon: "●", radius: 28, cooldownMs: 160 },
@@ -51,6 +52,7 @@ export class AntColonySimulation {
   private patternRunId = 0;
   private readonly routeCache = new Map<string, Vec2[]>();
   private readonly dominantRouteCache = new Map<number, { route: Vec2[]; branchIndex: number; score: number }>();
+  private readonly routeSuccessScores = new Map<string, number>();
 
   constructor() {
     this.reset();
@@ -73,6 +75,7 @@ export class AntColonySimulation {
     this.patternRunId += 1;
     this.routeCache.clear();
     this.dominantRouteCache.clear();
+    this.routeSuccessScores.clear();
     this.ants.length = 0;
     this.objects.length = 0;
     this.pheromones.food.fill(0);
@@ -139,30 +142,47 @@ export class AntColonySimulation {
     }
 
     const definition = TOOL_DEFINITIONS.find((tool) => tool.kind === kind)!;
-    const mysteryEffect = kind === "mystery" ? this.pickMysteryEffect(x, y) : undefined;
+    const variantSeed = Math.random() * 10000 + this.nextObjectId * 37.7;
+    const placeJitter = kind === "finger" ? 12 : kind === "pebble" ? 10 : kind === "mystery" ? 18 : kind === "leaf" ? 8 : 5;
+    const placedX = clamp(x + rand(-placeJitter, placeJitter), 32, WORLD_WIDTH - 32);
+    const placedY = clamp(y + rand(-placeJitter, placeJitter), 32, WORLD_HEIGHT - 32);
+    if (Math.hypot(placedX - this.nest.x, placedY - this.nest.y) < 58 || this.foods.some((food) => Math.hypot(placedX - food.x, placedY - food.y) < 58)) {
+      return false;
+    }
+    if (this.terrainAt(placedX, placedY)?.blocksAnts) {
+      return false;
+    }
+    const mysteryEffect = kind === "mystery" ? this.pickMysteryEffect() : undefined;
     const effectKind = mysteryEffect ?? kind;
-    const effectRadius = effectKind === "pump" ? 82 : effectKind === "water" ? 46 : effectKind === "leaf" ? 42 : effectKind === "finger" ? 34 : definition.radius;
+    const baseRadius = effectKind === "pump" ? 82 : effectKind === "water" ? 46 : effectKind === "leaf" ? 42 : effectKind === "finger" ? 34 : definition.radius;
+    const radiusJitter = effectKind === "pump" ? rand(0.82, 1.16) : effectKind === "finger" ? rand(0.72, 1.34) : rand(0.78, 1.24);
+    const effectRadius = clamp(baseRadius * radiusJitter, 16, 106);
     this.objects.push({
       id: this.nextObjectId++,
       kind,
-      x,
-      y,
+      x: placedX,
+      y: placedY,
       radius: effectRadius,
       age: 0,
-      effectKind
+      effectKind,
+      rotation: rand(-Math.PI, Math.PI),
+      stretch: effectKind === "finger" ? rand(1.15, 2.25) : effectKind === "leaf" ? rand(1.1, 1.55) : rand(0.86, 1.22),
+      variantSeed
     });
     this.routeCache.clear();
     this.dominantRouteCache.clear();
     this.refreshAntRouteMemory();
 
     const disruption = effectKind === "pump" ? 1.8 : effectKind === "water" ? 1.1 : effectKind === "finger" ? 0.86 : effectKind === "leaf" ? 0.62 : 0.45;
-    this.pheromones.addDisruption(x, y, effectRadius * 1.15, disruption);
+    this.pheromones.addDisruption(placedX, placedY, effectRadius * rand(0.92, 1.3), disruption * rand(0.72, 1.18));
     if (effectKind === "pump") {
-      this.washAnts(x, y, effectRadius * 2.15);
+      this.washAnts(placedX, placedY, effectRadius * 2.15);
     } else if (effectKind === "leaf") {
-      this.turnNearbyAnts(x, y, effectRadius * 2.3, 1.35);
+      this.turnNearbyAnts(placedX, placedY, effectRadius * 2.3, 1.35);
     } else if (effectKind === "finger") {
-      this.turnNearbyAnts(x, y, effectRadius * 2.1, 2.2);
+      this.turnNearbyAnts(placedX, placedY, effectRadius * 2.3, 2.55);
+    } else if (effectKind === "pebble") {
+      this.turnNearbyAnts(placedX, placedY, effectRadius * 1.65, 0.7);
     }
     return true;
   }
@@ -293,18 +313,32 @@ export class AntColonySimulation {
     const matureTrail = clamp(this.deliveredPieces / 70, 0, 1);
     const routeRejoinTurn =
       routeSegment.distance > 12 ? signedAngle(ant.heading, Math.atan2(routeSegment.closest.y - ant.y, routeSegment.closest.x - ant.x)) * (0.36 + offRoute * 0.56 + recovery * 0.9) : 0;
-    const weberTurn = ((right - left) / (right + left + 0.08)) * 2.05 * (1 - recovery * 0.42);
-    const targetTurn = signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) * (0.72 + offRoute * 0.44 + recovery * 1.02 + matureTrail * 0.22) * ant.routeStickiness;
-    const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * (0.24 + matureTrail * 0.12 + localTrailStrength * 0.08) * ant.routeStickiness;
-    const corridorTurn = signedAngle(ant.heading, ant.mode === "forage" ? routeSegment.angle : wrapAngle(routeSegment.angle + Math.PI)) * (0.12 + matureTrail * 0.26 + localTrailStrength * 0.12) * (1 - offRoute * 0.25);
-    const noise = rand(-1.35, 1.35) * (0.28 + frontDisruption * 1.35 + ant.washedTtl * 0.48) * (1 - recovery * 0.6) * (1 - matureTrail * 0.34) * (1 - localTrailStrength * 0.26);
+    const shortcutConfidence = clamp(matureTrail + this.cachedDominantRouteForFood(ant.foodIndex).score * 1.2, 0, 1);
+    const weberTurn = ((right - left) / (right + left + 0.08)) * 2.05 * ant.pheromoneSensitivity * (1 - recovery * 0.42);
+    const targetTurn =
+      signedAngle(ant.heading, Math.atan2(target.y - ant.y, target.x - ant.x)) *
+      (0.72 + offRoute * 0.44 + recovery * 1.02 + matureTrail * 0.22 + shortcutConfidence * ant.shortcutBias * 0.3) *
+      ant.routeStickiness;
+    const memoryTurn = signedAngle(ant.heading, ant.memoryHeading) * (0.24 + matureTrail * 0.12 + localTrailStrength * 0.08 + shortcutConfidence * 0.08) * ant.routeStickiness;
+    const corridorTurn =
+      signedAngle(ant.heading, ant.mode === "forage" ? routeSegment.angle : wrapAngle(routeSegment.angle + Math.PI)) *
+      (0.12 + matureTrail * 0.26 + localTrailStrength * 0.12 + shortcutConfidence * ant.shortcutBias * 0.16) *
+      (1 - offRoute * 0.25);
+    const noise =
+      rand(-1.35, 1.35) *
+      ant.explorationNoise *
+      (0.28 + frontDisruption * 1.35 + ant.washedTtl * 0.48) *
+      (1 - recovery * 0.6) *
+      (1 - matureTrail * 0.34) *
+      (1 - localTrailStrength * 0.26) *
+      (1 - shortcutConfidence * ant.shortcutBias * 0.28);
 
     ant.heading = wrapAngle(ant.heading + (weberTurn + targetTurn + memoryTurn + routeRejoinTurn + corridorTurn + noise) * dt);
     if (ant.stalledTime > 7) {
       this.recoverStalledAnt(ant, route, routeSegment);
     }
-    ant.speed = lerp(ant.speed, 38 + Math.max(left, right) * 13 - frontDisruption * 9 + ant.washedTtl * 18, 0.08);
-    ant.speed = clamp(ant.speed, 20, 62);
+    ant.speed = lerp(ant.speed, (38 + Math.max(left, right) * 13 - frontDisruption * 9 + ant.washedTtl * 18) * BASE_SPEED_BOOST, 0.08);
+    ant.speed = clamp(ant.speed, 26, 82);
 
     this.avoidObjects(ant, dt);
     this.avoidTerrain(ant, dt);
@@ -343,6 +377,7 @@ export class AntColonySimulation {
         this.deliveredPieces += ant.cargoPieces > 0 ? ant.cargoPieces : 1;
         ant.cargoSize = 0;
         ant.cargoPieces = 0;
+        this.reinforceSuccessfulRoute(ant.foodIndex, this.routeBranchIndexForAnt(ant.id, ant.foodIndex), 1);
         this.pheromones.addFood(ant.x, ant.y, 0.8);
       }
     }
@@ -358,10 +393,14 @@ export class AntColonySimulation {
       if (distance > influence) continue;
 
       const away = Math.atan2(dy, dx);
-      const strength = (1 - distance / influence) * (object.effectKind === "leaf" ? 3.2 : object.effectKind === "pebble" ? 4.1 : 2.1) * (1 - recovery * 0.32);
+      const objectVariance = 0.82 + seededUnit(object.variantSeed + ant.id) * 0.52;
+      const strength = (1 - distance / influence) * (object.effectKind === "leaf" ? 3.2 : object.effectKind === "pebble" ? 4.1 : 2.1) * objectVariance * (1 - recovery * 0.32);
       ant.heading = wrapAngle(ant.heading + signedAngle(ant.heading, away) * strength * dt);
       if (object.effectKind === "water" || object.effectKind === "finger" || object.effectKind === "pump") {
-        ant.heading = wrapAngle(ant.heading + rand(-1.1, 1.1) * dt * 6);
+        ant.heading = wrapAngle(ant.heading + rand(-1.1, 1.1) * dt * (object.effectKind === "finger" ? 8.2 : 6));
+      }
+      if (object.effectKind === "pebble" && seededUnit(object.variantSeed + ant.id * 3.1) > 0.72) {
+        ant.speed *= 0.9;
       }
     }
   }
@@ -395,14 +434,9 @@ export class AntColonySimulation {
     }
   }
 
-  private pickMysteryEffect(x: number, y: number): ToolKind {
-    const nearby = this.ants.filter((ant) => Math.hypot(ant.x - x, ant.y - y) < 130).length;
-    const roll = Math.random();
-    if (nearby >= 10 && roll < 0.38) return "pump";
-    if (roll < 0.32) return "water";
-    if (roll < 0.58) return "leaf";
-    if (roll < 0.8) return "finger";
-    return "pebble";
+  private pickMysteryEffect(): ToolKind {
+    const effects: ToolKind[] = ["pebble", "leaf", "finger", "water", "pump"];
+    return effects[Math.floor(Math.random() * effects.length)];
   }
 
   private avoidTerrain(ant: Ant, dt: number): void {
@@ -425,7 +459,8 @@ export class AntColonySimulation {
       object.age += dt;
       if (object.effectKind === "water" || object.effectKind === "finger" || object.effectKind === "pump" || object.kind === "mystery") {
         const amount = object.effectKind === "pump" ? 0.014 : object.effectKind === "water" ? 0.01 : object.effectKind === "finger" ? 0.008 : 0.006;
-        this.pheromones.addDisruption(object.x, object.y, object.radius, amount);
+        const sway = Math.sin(object.age * 2.1 + object.variantSeed) * object.radius * 0.08;
+        this.pheromones.addDisruption(object.x + Math.cos(object.rotation) * sway, object.y + Math.sin(object.rotation) * sway, object.radius * (0.88 + seededUnit(object.variantSeed) * 0.28), amount);
       }
     }
   }
@@ -471,7 +506,7 @@ export class AntColonySimulation {
       x: this.nest.x + rand(-18, 18),
       y: this.nest.y + rand(-18, 18),
       heading,
-      speed: rand(28, 45),
+      speed: rand(36, 57),
       mode: "forage",
       routeIndex: 1,
       foodIndex,
@@ -482,7 +517,10 @@ export class AntColonySimulation {
       wiggle: Math.random() * TAU,
       lastTargetDistance: Math.hypot(this.nest.x - this.routeTarget(route, 1).x, this.nest.y - this.routeTarget(route, 1).y),
       stalledTime: 0,
-      routeStickiness: rand(0.86, 1.16)
+      routeStickiness: rand(0.86, 1.18),
+      pheromoneSensitivity: rand(0.82, 1.22),
+      explorationNoise: rand(0.76, 1.34),
+      shortcutBias: rand(0.58, 1.28)
     });
   }
 
@@ -516,8 +554,9 @@ export class AntColonySimulation {
     const roll = seededUnit(antId + this.map.scatterSeed * 97);
     const resolvedFoodIndex = foodIndex ?? this.pickFoodIndex(antId);
     const dominant = this.cachedDominantRouteForFood(resolvedFoodIndex);
-    const convergence = clamp(this.deliveredPieces / 120 + dominant.score * 1.6, 0, 0.92);
-    const branchIndex = roll < convergence ? dominant.branchIndex : this.pickBranchIndex(roll);
+    const convergence = clamp(this.deliveredPieces / 95 + dominant.score * 1.8, 0, 0.94);
+    const shortcutRoll = seededUnit(antId * 7.31 + this.patternRunId * 19.7);
+    const branchIndex = shortcutRoll < convergence ? dominant.branchIndex : this.pickBranchIndex(roll);
     const cacheKey = `${this.patternRunId}:${this.map.id}:${resolvedFoodIndex}:${branchIndex}`;
     const cached = this.routeCache.get(cacheKey);
     if (cached) return cached;
@@ -549,9 +588,12 @@ export class AntColonySimulation {
       { route: this.applyObstacleDetours(this.transformRoute(this.map.route, food)), branchIndex: -1 },
       ...this.map.branches.map((branch, index) => ({ route: this.applyObstacleDetours(this.transformRoute(branch.points, food)), branchIndex: index }))
     ];
+    const longest = Math.max(...candidates.map((candidate) => polylineLength(candidate.route)), 1);
     let best = { ...candidates[0], score: Number.NEGATIVE_INFINITY };
     for (const candidate of candidates) {
-      const score = this.scoreTrailRoute(candidate.route);
+      const lengthScore = 1 - polylineLength(candidate.route) / longest;
+      const successScore = this.routeSuccessScores.get(this.routeScoreKey(foodIndex, candidate.branchIndex)) ?? 0;
+      const score = this.scoreTrailRoute(candidate.route) + lengthScore * 0.18 + successScore;
       if (score > best.score) best = { ...candidate, score };
     }
     return best;
@@ -575,6 +617,25 @@ export class AntColonySimulation {
       }
     }
     return samples === 0 ? 0 : score / samples;
+  }
+
+  private reinforceSuccessfulRoute(foodIndex: number, branchIndex: number, amount: number): void {
+    const key = this.routeScoreKey(foodIndex, branchIndex);
+    const next = clamp((this.routeSuccessScores.get(key) ?? 0) * 0.985 + amount * 0.035, 0, 0.7);
+    this.routeSuccessScores.set(key, next);
+    this.dominantRouteCache.delete(foodIndex);
+  }
+
+  private routeBranchIndexForAnt(antId: number, foodIndex: number): number {
+    const roll = seededUnit(antId + this.map.scatterSeed * 97);
+    const dominant = this.cachedDominantRouteForFood(foodIndex);
+    const convergence = clamp(this.deliveredPieces / 95 + dominant.score * 1.8, 0, 0.94);
+    const shortcutRoll = seededUnit(antId * 7.31 + this.patternRunId * 19.7);
+    return shortcutRoll < convergence ? dominant.branchIndex : this.pickBranchIndex(roll);
+  }
+
+  private routeScoreKey(foodIndex: number, branchIndex: number): string {
+    return `${this.patternRunId}:${this.map.id}:${foodIndex}:${branchIndex}`;
   }
 
   private applyObstacleDetours(route: Vec2[]): Vec2[] {

@@ -4,6 +4,7 @@ interface HudOptions {
   tools: ToolDefinition[];
   maps: MapPreset[];
   onToolSelect: (tool: ToolKind) => void;
+  onToolCycle: () => void;
   onMapSelect: (mapId: string) => void;
   onReset: () => void;
   onTimeScaleToggle: () => void;
@@ -59,7 +60,12 @@ export class HudController {
           )
           .join("")}
       </div>
-      <div class="hud tool-dock" role="toolbar" aria-label="道具">
+      <div class="tool-switcher">
+        <button class="tool-current" type="button" data-tool-cycle aria-label="おじゃまアイテムを切り替える">
+          <span class="tool-icon" data-current-tool-icon>●</span>
+          <span data-current-tool-label>小石</span>
+        </button>
+        <div class="hud tool-dock" role="toolbar" aria-label="おじゃまアイテム">
         ${this.options.tools
           .map(
             (tool) => `
@@ -70,6 +76,7 @@ export class HudController {
             `
           )
           .join("")}
+        </div>
       </div>
       <button class="speed-button" type="button" data-speed aria-label="速度を切り替える">1倍速</button>
       <div class="speed-presets" aria-hidden="true">
@@ -130,6 +137,7 @@ export class HudController {
     }
     this.root.querySelector<HTMLButtonElement>("[data-reset]")?.addEventListener("click", () => this.options?.onReset());
     this.root.querySelector<HTMLButtonElement>("[data-speed]")?.addEventListener("click", () => this.options?.onTimeScaleToggle());
+    this.root.querySelector<HTMLButtonElement>("[data-tool-cycle]")?.addEventListener("click", () => this.options?.onToolCycle());
     this.root.querySelector<HTMLButtonElement>("[data-open-research]")?.addEventListener("click", () => this.setResearchOpen(true));
     this.root.querySelector<HTMLButtonElement>("[data-close-research]")?.addEventListener("click", () => this.setResearchOpen(false));
     this.root.querySelector<HTMLElement>("[data-research-page]")?.addEventListener("click", (event) => {
@@ -163,6 +171,11 @@ export class HudController {
       speedButton.classList.toggle("is-active", active);
       speedButton.setAttribute("aria-pressed", active ? "true" : "false");
       speedButton.textContent = `${this.stats.timeScale}倍速`;
+    }
+    const currentTool = this.options?.tools.find((tool) => tool.kind === this.stats?.selectedTool);
+    if (currentTool) {
+      this.setText("[data-current-tool-icon]", currentTool.icon);
+      this.setText("[data-current-tool-label]", currentTool.label);
     }
     for (const preset of this.root.querySelectorAll<HTMLElement>("[data-speed-preset]")) {
       preset.classList.toggle("is-active", preset.dataset.speedPreset === this.stats.timeScale.toString());

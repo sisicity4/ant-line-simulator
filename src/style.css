@@ -65,6 +65,7 @@ canvas {
 .hud,
 .reset-button,
 .speed-button,
+.tool-current,
 .research-button {
   pointer-events: auto;
   color: #463f36;
@@ -173,14 +174,50 @@ canvas {
   transform: translateY(0);
 }
 
-.tool-dock {
+.tool-switcher {
   position: absolute;
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.tool-current {
+  min-width: 118px;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.tool-dock {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translate(-50%, 6px);
   display: flex;
   gap: 8px;
   padding: 7px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  z-index: 8;
+}
+
+.tool-switcher:hover .tool-dock,
+.tool-switcher:focus-within .tool-dock {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
 }
 
 .map-dock {
@@ -195,6 +232,7 @@ canvas {
 }
 
 .tool-button,
+.tool-current,
 .map-button,
 .research-button,
 .speed-button,
@@ -246,6 +284,7 @@ canvas {
 }
 
 .tool-button:hover,
+.tool-current:hover,
 .map-button:hover,
 .speed-button:hover,
 .reset-button:hover,
@@ -502,10 +541,19 @@ canvas {
   }
 
   .tool-dock {
-    bottom: 10px;
+    bottom: 92px;
     width: min(396px, calc(100vw - 20px));
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .tool-switcher {
+    bottom: 10px;
+    width: min(396px, calc(100vw - 20px));
+  }
+
+  .tool-current {
+    width: min(152px, calc(100vw - 20px));
   }
 
   .map-dock {

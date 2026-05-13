@@ -41,6 +41,7 @@ export class GameScene extends Phaser.Scene {
       tools: TOOL_DEFINITIONS,
       maps: this.simulation.maps,
       onToolSelect: (tool) => this.simulation.setTool(tool),
+      onToolCycle: () => this.cycleTool(),
       onMapSelect: (mapId) => {
         this.simulation.setMap(mapId);
         this.simulation.setTimeScale(this.preferredTimeScale);
@@ -102,6 +103,12 @@ export class GameScene extends Phaser.Scene {
       this.deniedPulse(pointer.worldX, pointer.worldY);
       this.floatText(pointer.worldX, pointer.worldY - 18, "置けない", 0x8d5f52);
     }
+  }
+
+  private cycleTool(): void {
+    const currentIndex = TOOL_DEFINITIONS.findIndex((tool) => tool.kind === this.simulation.selectedTool);
+    const nextTool = TOOL_DEFINITIONS[(currentIndex + 1) % TOOL_DEFINITIONS.length];
+    this.simulation.setTool(nextTool.kind);
   }
 
   private drawGround(): void {
@@ -528,17 +535,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawPebble(object: PlacedObject, alpha: number): void {
-    this.objectLayer.fillStyle(0x8f897d, 0.92 * alpha);
-    this.objectLayer.fillCircle(object.x, object.y, object.radius);
+    this.objectLayer.save();
+    this.objectLayer.translateCanvas(object.x, object.y);
+    this.objectLayer.rotateCanvas(object.rotation);
+    this.objectLayer.fillStyle(0x8f897d, 0.9 * alpha);
+    this.objectLayer.fillEllipse(0, 0, object.radius * 2 * object.stretch, object.radius * 1.58);
+    for (let i = 0; i < 5; i += 1) {
+      const angle = seededRange(object.variantSeed, i, -Math.PI, Math.PI);
+      const distance = seededRange(object.variantSeed, i + 10, 0, object.radius * 0.42);
+      const r = seededRange(object.variantSeed, i + 20, object.radius * 0.16, object.radius * 0.34);
+      this.objectLayer.fillStyle(i % 2 === 0 ? 0xa8a193 : 0x777168, (i % 2 === 0 ? 0.34 : 0.2) * alpha);
+      this.objectLayer.fillCircle(Math.cos(angle) * distance, Math.sin(angle) * distance * 0.8, r);
+    }
     this.objectLayer.fillStyle(0xb5ad9d, 0.42 * alpha);
-    this.objectLayer.fillCircle(object.x - 8, object.y - 7, object.radius * 0.38);
+    this.objectLayer.fillCircle(-object.radius * 0.28, -object.radius * 0.22, object.radius * 0.34);
+    this.objectLayer.restore();
   }
 
   private drawLeaf(object: PlacedObject, alpha: number): void {
+    this.objectLayer.save();
+    this.objectLayer.translateCanvas(object.x, object.y);
+    this.objectLayer.rotateCanvas(object.rotation);
     this.objectLayer.fillStyle(0x87936d, 0.9 * alpha);
-    this.objectLayer.fillEllipse(object.x, object.y, object.radius * 1.55, object.radius * 0.86);
+    this.objectLayer.fillEllipse(0, 0, object.radius * object.stretch * 1.55, object.radius * 0.86);
     this.objectLayer.lineStyle(2, 0x667257, 0.55 * alpha);
-    this.objectLayer.lineBetween(object.x - object.radius * 0.55, object.y, object.x + object.radius * 0.58, object.y);
+    this.objectLayer.lineBetween(-object.radius * object.stretch * 0.55, 0, object.radius * object.stretch * 0.58, 0);
+    this.objectLayer.restore();
   }
 
   private drawWater(object: PlacedObject, alpha: number): void {
@@ -568,10 +590,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawMystery(object: PlacedObject, alpha: number): void {
-    this.objectLayer.fillStyle(0x7d7890, 0.18 * alpha);
-    this.objectLayer.fillCircle(object.x, object.y, object.radius * 0.92);
-    this.objectLayer.lineStyle(3, 0xe8e0ca, 0.5 * alpha);
-    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.48);
+    const pulse = 0.9 + Math.sin(object.age * 4 + object.variantSeed) * 0.08;
+    this.objectLayer.fillStyle(0x7d7890, 0.16 * alpha);
+    this.objectLayer.fillCircle(object.x, object.y, object.radius * pulse);
+    this.objectLayer.lineStyle(3, this.toolColor(object.effectKind), 0.44 * alpha);
+    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.48 * pulse);
     this.objectLayer.fillStyle(0x5d576a, 0.72 * alpha);
     this.objectLayer.fillCircle(object.x, object.y - object.radius * 0.06, object.radius * 0.16);
     this.objectLayer.fillStyle(0xe8e0ca, 0.78 * alpha);
@@ -579,10 +602,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawFinger(object: PlacedObject, alpha: number): void {
-    this.objectLayer.fillStyle(0xb78f79, 0.18 * alpha);
-    this.objectLayer.fillCircle(object.x, object.y, object.radius);
-    this.objectLayer.lineStyle(3, 0xa67863, 0.16 * alpha);
-    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.72);
+    this.objectLayer.save();
+    this.objectLayer.translateCanvas(object.x, object.y);
+    this.objectLayer.rotateCanvas(object.rotation);
+    this.objectLayer.fillStyle(0xb78f79, 0.14 * alpha);
+    this.objectLayer.fillEllipse(0, 0, object.radius * object.stretch * 2, object.radius * 1.05);
+    this.objectLayer.lineStyle(3, 0xa67863, 0.14 * alpha);
+    for (let i = -1; i <= 1; i += 1) {
+      this.objectLayer.strokeEllipse(0, i * object.radius * 0.14, object.radius * object.stretch * 1.45, object.radius * 0.46);
+    }
+    this.objectLayer.restore();
   }
 
   private pulse(x: number, y: number, kind: ToolKind): void {
