@@ -541,7 +541,7 @@ canvas {
   }
 
   .tool-dock {
-    bottom: 92px;
+    bottom: 144px;
     width: min(396px, calc(100vw - 20px));
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -585,12 +585,12 @@ canvas {
   }
 
   .speed-button {
-    right: 100px;
+    right: 118px;
     bottom: 76px;
   }
 
   .speed-presets {
-    right: 100px;
+    right: 118px;
     bottom: 122px;
     max-width: calc(100vw - 124px);
     overflow-x: auto;
