@@ -10,6 +10,8 @@ Original prompt: CLAUDE-FABLE-5 のように率直なレビューを繰り返し
 - Corrected research-note claims and improved research dialog accessibility.
 - Long-run review found crowding lookup too expensive at 20x; replaced all-ant scans with local spatial buckets.
 - Browser checks passed at desktop, mobile, minimum-width mobile, and landscape mobile with no page errors or overflow.
+- Final dependency review upgraded Vite to 8.0.16; `npm audit --omit=dev` now reports 0 vulnerabilities.
+- Final browser flow confirmed 20x persists across map switch and reset, reset returns total ants to 52, and the research dialog opens/closes correctly.
 
 ## Remaining review notes
 
