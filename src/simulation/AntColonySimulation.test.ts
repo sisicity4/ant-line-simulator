@@ -40,4 +40,36 @@ describe("AntColonySimulation", () => {
     expect(debug.objects).toBeGreaterThan(0);
     expect(debug.deliveredPieces).toBeGreaterThan(0);
   });
+
+  it("reduces pheromone deposition in crowded local traffic", () => {
+    const sparse = new AntColonySimulation();
+    const crowded = new AntColonySimulation();
+    const sparseAnt = sparse.ants[0];
+    const crowdedAnt = crowded.ants[0];
+
+    sparse.ants.splice(1);
+    for (const ant of crowded.ants) {
+      ant.x = crowdedAnt.x;
+      ant.y = crowdedAnt.y;
+    }
+
+    const sparseMultiplier = (sparse as unknown as { crowdingDepositMultiplier: (ant: typeof sparseAnt) => number }).crowdingDepositMultiplier(sparseAnt);
+    const crowdedMultiplier = (crowded as unknown as { crowdingDepositMultiplier: (ant: typeof crowdedAnt) => number }).crowdingDepositMultiplier(crowdedAnt);
+
+    expect(sparseMultiplier).toBe(1);
+    expect(crowdedMultiplier).toBeLessThanOrEqual(0.22);
+  });
+
+  it("does not change preferred walking speed based on pheromone strength", () => {
+    const simulation = new AntColonySimulation();
+    const ant = simulation.ants[0];
+    ant.preferredSpeed = 44;
+    ant.speed = 44;
+    simulation.pheromones.addFood(ant.x, ant.y, 2.5);
+    simulation.pheromones.addHome(ant.x, ant.y, 2.5);
+
+    simulation.step(50);
+
+    expect(ant.speed).toBeLessThan(60);
+  });
 });

@@ -338,7 +338,7 @@ export class AntColonySimulation {
     if (ant.stalledTime > 7) {
       this.recoverStalledAnt(ant, route, routeSegment);
     }
-    ant.speed = lerp(ant.speed, (38 + Math.max(left, right) * 13 - frontDisruption * 9 + ant.washedTtl * 18) * BASE_SPEED_BOOST, 0.08);
+    ant.speed = lerp(ant.speed, (ant.preferredSpeed - frontDisruption * 9 + ant.washedTtl * 18) * BASE_SPEED_BOOST, 0.08);
     ant.speed = clamp(ant.speed, 26, 82);
 
     this.avoidObjects(ant, dt);
@@ -348,8 +348,12 @@ export class AntColonySimulation {
     ant.y += Math.sin(ant.heading) * ant.speed * dt;
     this.keepInWorld(ant);
 
-    if (deposit === "home") this.pheromones.addHome(ant.x, ant.y, 0.025);
-    else this.pheromones.addFood(ant.x, ant.y, 0.038);
+    const crowdingMultiplier = this.crowdingDepositMultiplier(ant);
+    if (deposit === "home") this.pheromones.addHome(ant.x, ant.y, 0.025 * crowdingMultiplier);
+    else {
+      const successfulReturnMultiplier = ant.cargoPieces > 0 ? 1.35 : 1;
+      this.pheromones.addFood(ant.x, ant.y, 0.038 * crowdingMultiplier * successfulReturnMultiplier);
+    }
 
     if (Math.hypot(ant.x - target.x, ant.y - target.y) < 28) {
       if (ant.mode === "forage" && ant.routeIndex < route.length - 1) {
@@ -504,12 +508,14 @@ export class AntColonySimulation {
     const foodIndex = this.pickFoodIndex(id);
     const routeBranchIndex = this.selectBranchIndex(id, foodIndex);
     const route = this.activeRoute(id, foodIndex, routeBranchIndex);
+    const preferredSpeed = rand(36, 57);
     this.ants.push({
       id,
       x: this.nest.x + rand(-18, 18),
       y: this.nest.y + rand(-18, 18),
       heading,
-      speed: rand(36, 57),
+      speed: preferredSpeed,
+      preferredSpeed,
       mode: "forage",
       routeIndex: 1,
       routeBranchIndex,
@@ -538,6 +544,15 @@ export class AntColonySimulation {
     ant.cargoPieces = Math.round(3 + ant.cargoSize * 0.35);
     ant.speed *= 0.82;
     return true;
+  }
+
+  private crowdingDepositMultiplier(ant: Ant): number {
+    let neighbors = 0;
+    for (const other of this.ants) {
+      if (other.id === ant.id) continue;
+      if (Math.hypot(other.x - ant.x, other.y - ant.y) <= 34) neighbors += 1;
+    }
+    return clamp(1 - neighbors * 0.09, 0.22, 1);
   }
 
   private initialHeading(): number {

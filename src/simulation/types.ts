@@ -13,6 +13,7 @@ export interface Ant {
   y: number;
   heading: number;
   speed: number;
+  preferredSpeed: number;
   mode: AntMode;
   routeIndex: number;
   routeBranchIndex: number;
