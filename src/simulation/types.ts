@@ -15,6 +15,7 @@ export interface Ant {
   speed: number;
   mode: AntMode;
   routeIndex: number;
+  routeBranchIndex: number;
   foodIndex: number;
   memoryHeading: number;
   cargoSize: number;

@@ -85,6 +85,7 @@ export class AntColonySimulation {
     this.spawnTimer = 0;
     this.cargoTimer = 4;
     this.dominantRefreshTimer = 0;
+    this.nextAntId = 1;
     this.nextObjectId = 1;
     for (let i = 0; i < 52; i += 1) {
       this.spawnAnt(this.initialHeading());
@@ -289,7 +290,7 @@ export class AntColonySimulation {
 
   private stepAnt(ant: Ant, dt: number): void {
     ant.washedTtl = Math.max(0, ant.washedTtl - dt);
-    const route = this.activeRoute(ant.id, ant.foodIndex);
+    const route = this.activeRoute(ant.id, ant.foodIndex, ant.routeBranchIndex);
     const target = this.routeTarget(route, ant.routeIndex);
     const desiredField = ant.mode === "forage" ? this.pheromones.food : this.pheromones.home;
     const deposit = ant.mode === "forage" ? "home" : "food";
@@ -366,8 +367,9 @@ export class AntColonySimulation {
         ant.routeIndex = ant.mode === "forage" ? 1 : route.length - 2;
         if (ant.mode === "forage") {
           ant.foodIndex = this.pickFoodIndex(ant.id + Math.round(this.deliveredPieces * 17));
+          ant.routeBranchIndex = this.selectBranchIndex(ant.id, ant.foodIndex);
         }
-        const nextRoute = this.activeRoute(ant.id, ant.foodIndex);
+        const nextRoute = this.activeRoute(ant.id, ant.foodIndex, ant.routeBranchIndex);
         ant.memoryHeading = this.angleTo(this.routeTarget(nextRoute, ant.routeIndex), ant);
         ant.heading = wrapAngle(ant.heading + Math.PI + rand(-0.4, 0.4));
         ant.stalledTime = 0;
@@ -377,7 +379,7 @@ export class AntColonySimulation {
         this.deliveredPieces += ant.cargoPieces > 0 ? ant.cargoPieces : 1;
         ant.cargoSize = 0;
         ant.cargoPieces = 0;
-        this.reinforceSuccessfulRoute(ant.foodIndex, this.routeBranchIndexForAnt(ant.id, ant.foodIndex), 1);
+        this.reinforceSuccessfulRoute(ant.foodIndex, ant.routeBranchIndex, 1);
         this.pheromones.addFood(ant.x, ant.y, 0.8);
       }
     }
@@ -418,7 +420,7 @@ export class AntColonySimulation {
       ant.heading = angle + rand(-0.8, 0.8);
       ant.speed = 70 + force * 52;
       ant.washedTtl = Math.max(ant.washedTtl, 1.4 + force * 0.9);
-      ant.memoryHeading = this.angleTo(this.routeTarget(this.activeRoute(ant.id, ant.foodIndex), ant.routeIndex), ant);
+      ant.memoryHeading = this.angleTo(this.routeTarget(this.activeRoute(ant.id, ant.foodIndex, ant.routeBranchIndex), ant.routeIndex), ant);
       this.keepInWorld(ant);
     }
   }
@@ -483,7 +485,7 @@ export class AntColonySimulation {
     let score = 0;
     let counted = 0;
     for (const ant of this.ants) {
-      const route = this.activeRoute(ant.id, ant.foodIndex);
+      const route = this.activeRoute(ant.id, ant.foodIndex, ant.routeBranchIndex);
       const segment = nearestSegment(route, ant);
       const nearRoute = segment.distance < 118;
       if (!nearRoute) continue;
@@ -500,7 +502,8 @@ export class AntColonySimulation {
   private spawnAnt(heading: number): void {
     const id = this.nextAntId++;
     const foodIndex = this.pickFoodIndex(id);
-    const route = this.activeRoute(id, foodIndex);
+    const routeBranchIndex = this.selectBranchIndex(id, foodIndex);
+    const route = this.activeRoute(id, foodIndex, routeBranchIndex);
     this.ants.push({
       id,
       x: this.nest.x + rand(-18, 18),
@@ -509,6 +512,7 @@ export class AntColonySimulation {
       speed: rand(36, 57),
       mode: "forage",
       routeIndex: 1,
+      routeBranchIndex,
       foodIndex,
       memoryHeading: this.angleTo(this.routeTarget(route, 1), this.nest),
       cargoSize: 0,
@@ -550,13 +554,9 @@ export class AntColonySimulation {
     return route[index];
   }
 
-  private activeRoute(antId: number, foodIndex?: number): Vec2[] {
-    const roll = seededUnit(antId + this.map.scatterSeed * 97);
+  private activeRoute(antId: number, foodIndex?: number, selectedBranchIndex?: number): Vec2[] {
     const resolvedFoodIndex = foodIndex ?? this.pickFoodIndex(antId);
-    const dominant = this.cachedDominantRouteForFood(resolvedFoodIndex);
-    const convergence = clamp(this.deliveredPieces / 95 + dominant.score * 1.8, 0, 0.94);
-    const shortcutRoll = seededUnit(antId * 7.31 + this.patternRunId * 19.7);
-    const branchIndex = shortcutRoll < convergence ? dominant.branchIndex : this.pickBranchIndex(roll);
+    const branchIndex = selectedBranchIndex ?? this.selectBranchIndex(antId, resolvedFoodIndex);
     const cacheKey = `${this.patternRunId}:${this.map.id}:${resolvedFoodIndex}:${branchIndex}`;
     const cached = this.routeCache.get(cacheKey);
     if (cached) return cached;
@@ -626,7 +626,7 @@ export class AntColonySimulation {
     this.dominantRouteCache.delete(foodIndex);
   }
 
-  private routeBranchIndexForAnt(antId: number, foodIndex: number): number {
+  private selectBranchIndex(antId: number, foodIndex: number): number {
     const roll = seededUnit(antId + this.map.scatterSeed * 97);
     const dominant = this.cachedDominantRouteForFood(foodIndex);
     const convergence = clamp(this.deliveredPieces / 95 + dominant.score * 1.8, 0, 0.94);
@@ -721,7 +721,7 @@ export class AntColonySimulation {
 
   private refreshAntRouteMemory(): void {
     for (const ant of this.ants) {
-      const route = this.activeRoute(ant.id, ant.foodIndex);
+      const route = this.activeRoute(ant.id, ant.foodIndex, ant.routeBranchIndex);
       ant.routeIndex = clamp(ant.routeIndex, 1, Math.max(1, route.length - 2));
       const target = this.routeTarget(route, ant.routeIndex);
       ant.memoryHeading = this.angleTo(target, ant);
