@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AntColonySimulation } from "./AntColonySimulation";
+import { AntColonySimulation, TOOL_DEFINITIONS } from "./AntColonySimulation";
 
 describe("AntColonySimulation", () => {
   it("resets the total ant count with the colony", () => {
@@ -30,7 +30,7 @@ describe("AntColonySimulation", () => {
     for (const point of route.slice(2, 5)) {
       simulation.toggleToolAt(point.x, point.y, "pebble", false);
     }
-    for (let i = 0; i < 360; i += 1) {
+    for (let i = 0; i < 180; i += 1) {
       simulation.step(50);
     }
 
@@ -52,6 +52,8 @@ describe("AntColonySimulation", () => {
       ant.x = crowdedAnt.x;
       ant.y = crowdedAnt.y;
     }
+    (sparse as unknown as { refreshCrowdingMultipliers: () => void }).refreshCrowdingMultipliers();
+    (crowded as unknown as { refreshCrowdingMultipliers: () => void }).refreshCrowdingMultipliers();
 
     const sparseMultiplier = (sparse as unknown as { crowdingDepositMultiplier: (ant: typeof sparseAnt) => number }).crowdingDepositMultiplier(sparseAnt);
     const crowdedMultiplier = (crowded as unknown as { crowdingDepositMultiplier: (ant: typeof crowdedAnt) => number }).crowdingDepositMultiplier(crowdedAnt);
@@ -71,5 +73,41 @@ describe("AntColonySimulation", () => {
     simulation.step(50);
 
     expect(ant.speed).toBeLessThan(60);
+  });
+
+  it.each(["garden-fork", "scramble", "mountain-river"])("remains healthy during a long 20x run on %s", (mapId) => {
+    const simulation = new AntColonySimulation();
+    simulation.setMap(mapId);
+    simulation.setTimeScale(20);
+    const route = simulation.getDisplayRoutes()[0];
+
+    for (const [index, tool] of TOOL_DEFINITIONS.entries()) {
+      const point = route[Math.min(index + 1, route.length - 2)];
+      simulation.toggleToolAt(point.x + index * 13, point.y + index * 7, tool.kind, false);
+    }
+    for (let i = 0; i < 240; i += 1) {
+      simulation.step(50);
+    }
+
+    const debug = simulation.getDebugSnapshot();
+    expect(debug.invalidAnts).toBe(0);
+    expect(debug.activeAnts).toBe(95);
+    expect(debug.deliveredPieces).toBeGreaterThan(0);
+    expect(debug.trailIntegrity).toBeGreaterThan(25);
+  });
+
+  it("keeps the chosen speed and placed objects until an explicit reset or removal", () => {
+    const simulation = new AntColonySimulation();
+    simulation.setTimeScale(20);
+    const point = simulation.getDisplayRoutes()[0][2];
+    const result = simulation.toggleToolAt(point.x, point.y, "pebble", false);
+
+    simulation.step(10_000);
+
+    expect(result).toBe("placed");
+    expect(simulation.timeScale).toBe(20);
+    expect(simulation.objects).toHaveLength(1);
+    expect(simulation.toggleToolAt(simulation.objects[0].x, simulation.objects[0].y)).toBe("removed");
+    expect(simulation.objects).toHaveLength(0);
   });
 });

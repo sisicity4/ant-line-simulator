@@ -53,6 +53,7 @@ export class AntColonySimulation {
   private readonly routeCache = new Map<string, Vec2[]>();
   private readonly dominantRouteCache = new Map<number, { route: Vec2[]; branchIndex: number; score: number }>();
   private readonly routeSuccessScores = new Map<string, number>();
+  private readonly crowdingMultipliers = new Map<number, number>();
 
   constructor() {
     this.reset();
@@ -76,6 +77,7 @@ export class AntColonySimulation {
     this.routeCache.clear();
     this.dominantRouteCache.clear();
     this.routeSuccessScores.clear();
+    this.crowdingMultipliers.clear();
     this.ants.length = 0;
     this.objects.length = 0;
     this.pheromones.food.fill(0);
@@ -283,6 +285,7 @@ export class AntColonySimulation {
       this.dominantRefreshTimer = 0;
       this.refreshDominantRoutes();
     }
+    this.refreshCrowdingMultipliers();
     for (const ant of this.ants) {
       this.stepAnt(ant, dt);
     }
@@ -547,12 +550,32 @@ export class AntColonySimulation {
   }
 
   private crowdingDepositMultiplier(ant: Ant): number {
-    let neighbors = 0;
-    for (const other of this.ants) {
-      if (other.id === ant.id) continue;
-      if (Math.hypot(other.x - ant.x, other.y - ant.y) <= 34) neighbors += 1;
+    return this.crowdingMultipliers.get(ant.id) ?? 1;
+  }
+
+  private refreshCrowdingMultipliers(): void {
+    const cellSize = 34;
+    const buckets = new Map<string, Ant[]>();
+    this.crowdingMultipliers.clear();
+    for (const ant of this.ants) {
+      const key = `${Math.floor(ant.x / cellSize)}:${Math.floor(ant.y / cellSize)}`;
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(ant);
+      else buckets.set(key, [ant]);
     }
-    return clamp(1 - neighbors * 0.09, 0.22, 1);
+    for (const ant of this.ants) {
+      const gx = Math.floor(ant.x / cellSize);
+      const gy = Math.floor(ant.y / cellSize);
+      let neighbors = 0;
+      for (let y = gy - 1; y <= gy + 1; y += 1) {
+        for (let x = gx - 1; x <= gx + 1; x += 1) {
+          for (const other of buckets.get(`${x}:${y}`) ?? []) {
+            if (other.id !== ant.id && Math.hypot(other.x - ant.x, other.y - ant.y) <= cellSize) neighbors += 1;
+          }
+        }
+      }
+      this.crowdingMultipliers.set(ant.id, clamp(1 - neighbors * 0.09, 0.22, 1));
+    }
   }
 
   private initialHeading(): number {
