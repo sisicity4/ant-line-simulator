@@ -6,6 +6,8 @@ import type { MapPreset, PlacedObject, TerrainPatch, ToolKind, Vec2 } from "../s
 declare global {
   interface Window {
     __antDebug?: () => ReturnType<AntColonySimulation["getDebugSnapshot"]>;
+    render_game_to_text?: () => string;
+    advanceTime?: (ms: number) => void;
   }
 }
 
@@ -39,6 +41,7 @@ export class GameScene extends Phaser.Scene {
       tools: TOOL_DEFINITIONS,
       maps: this.simulation.maps,
       onToolSelect: (tool) => this.simulation.setTool(tool),
+      onToolCycle: () => this.cycleTool(),
       onMapSelect: (mapId) => {
         this.simulation.setMap(mapId);
         this.simulation.setTimeScale(this.preferredTimeScale);
@@ -55,6 +58,21 @@ export class GameScene extends Phaser.Scene {
       }
     });
     window.__antDebug = () => this.simulation.getDebugSnapshot();
+    window.render_game_to_text = () =>
+      JSON.stringify({
+        coordinateSystem: "origin top-left, x right, y down",
+        stats: this.simulation.getDebugSnapshot(),
+        foods: this.simulation.foods,
+        dominantTrailPoints: this.simulation.getDominantTrail().length,
+        dominantTrailStrength: Math.round(this.simulation.getDominantTrailStrength() * 100) / 100,
+        cargoAnts: this.simulation.ants.filter((ant) => ant.cargoSize > 0).length,
+        objects: this.simulation.objects.map((object) => ({ kind: object.kind, x: Math.round(object.x), y: Math.round(object.y), radius: Math.round(object.radius) }))
+      });
+    window.advanceTime = (ms: number) => {
+      this.simulation.step(ms);
+      this.renderWorld();
+      this.hud.update(this.simulation.getStats());
+    };
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.tryPlace(pointer, true));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
@@ -87,6 +105,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private cycleTool(): void {
+    const currentIndex = TOOL_DEFINITIONS.findIndex((tool) => tool.kind === this.simulation.selectedTool);
+    const nextTool = TOOL_DEFINITIONS[(currentIndex + 1) % TOOL_DEFINITIONS.length];
+    this.simulation.setTool(nextTool.kind);
+  }
+
   private drawGround(): void {
     const map = this.simulation.map;
     this.ground.clear();
@@ -114,32 +138,14 @@ export class GameScene extends Phaser.Scene {
     this.ground.fillCircle(this.simulation.nest.x + 3, this.simulation.nest.y + 2, 19);
 
     for (const food of this.simulation.foods) {
-      this.ground.fillStyle(0xd8c97e, 1);
-      this.ground.fillCircle(food.x, food.y, 20);
-      this.ground.fillStyle(0xb69e55, 1);
-      for (let i = 0; i < 9; i += 1) {
-        const angle = (i / 9) * Math.PI * 2;
-        this.ground.fillCircle(food.x + Math.cos(angle) * 25, food.y + Math.sin(angle) * 15, 4);
-      }
+      this.drawFoodPile(food);
     }
   }
 
   private drawMapRoutes(map: MapPreset): void {
-    const routes = this.simulation.getDisplayRoutes();
-    for (let i = 0; i < routes.length; i += 1) {
-      this.ground.lineStyle(2, i % (map.branches.length + 1) === 0 ? 0x8f826d : 0x738065, i % (map.branches.length + 1) === 0 ? 0.22 : 0.13);
-      this.drawSpline(routes[i], i % (map.branches.length + 1) === 0 ? 56 : 44);
-    }
-
     if (map.id === "scramble") {
       this.drawScrambleCrosswalks();
     }
-  }
-
-  private drawSpline(points: Vec2[], divisions: number): void {
-    if (points.length < 2) return;
-    const path = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
-    path.draw(this.ground, divisions);
   }
 
   private drawTerrain(map: MapPreset): void {
@@ -410,6 +416,25 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+    this.drawDominantTrail();
+  }
+
+  private drawDominantTrail(): void {
+    const trail = this.simulation.getDominantTrail();
+    if (trail.length < 2) return;
+    const strength = this.simulation.getDominantTrailStrength();
+    this.pheromoneLayer.lineStyle(8, 0xd8c77a, 0.08 + strength * 0.12);
+    this.drawSplineOnLayer(this.pheromoneLayer, trail, 76);
+    this.pheromoneLayer.lineStyle(3, 0x7f8b62, 0.24 + strength * 0.28);
+    this.drawSplineOnLayer(this.pheromoneLayer, trail, 76);
+    this.pheromoneLayer.lineStyle(1, 0xf1e3a4, 0.32 + strength * 0.38);
+    this.drawSplineOnLayer(this.pheromoneLayer, trail, 76);
+  }
+
+  private drawSplineOnLayer(layer: Phaser.GameObjects.Graphics, points: Vec2[], divisions: number): void {
+    if (points.length < 2) return;
+    const path = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
+    path.draw(layer, divisions);
   }
 
   private drawPointerPreview(): void {
@@ -477,26 +502,65 @@ export class GameScene extends Phaser.Scene {
       }
       this.antLayer.restore();
       if (ant.cargoSize > 0) {
-        this.antLayer.fillStyle(0xf0df98, 0.88);
-        this.antLayer.fillCircle(ant.x, ant.y - 12, 5.5);
-        this.antLayer.lineStyle(1, 0x8f7f49, 0.55);
-        this.antLayer.strokeCircle(ant.x, ant.y - 12, 8);
+        this.antLayer.fillStyle(0xf0df98, 0.2);
+        this.antLayer.fillCircle(ant.x, ant.y - 12, 13);
+        this.antLayer.lineStyle(2, 0xf0df98, 0.62);
+        this.antLayer.strokeCircle(ant.x, ant.y - 12, 8.8);
+        this.antLayer.fillStyle(0xf4df8c, 0.95);
+        this.antLayer.fillRoundedRect(ant.x - 6.5, ant.y - 18.5, 13, 10, 3);
+        this.antLayer.fillStyle(0x9a8750, 0.62);
+        this.antLayer.fillCircle(ant.x + 3.4, ant.y - 14.5, 2.2);
       }
     }
   }
 
+  private drawFoodPile(food: Vec2): void {
+    this.ground.fillStyle(0xf1df92, 0.1);
+    this.ground.fillCircle(food.x, food.y, 42);
+    this.ground.lineStyle(2, 0xf2e6aa, 0.42);
+    this.ground.strokeCircle(food.x, food.y, 33);
+    this.ground.lineStyle(1, 0x9d8d58, 0.22);
+    this.ground.strokeCircle(food.x, food.y, 22);
+    for (let i = 0; i < 15; i += 1) {
+      const angle = (i / 15) * Math.PI * 2 + seededRange(this.simulation.map.scatterSeed, i + 810, -0.25, 0.25);
+      const distance = seededRange(this.simulation.map.scatterSeed, i + 840, 3, 23);
+      const radius = seededRange(this.simulation.map.scatterSeed, i + 870, 3.8, 7.4);
+      const x = food.x + Math.cos(angle) * distance;
+      const y = food.y + Math.sin(angle) * distance * 0.68;
+      this.ground.fillStyle(i % 3 === 0 ? 0xf3e39a : i % 3 === 1 ? 0xd8c97e : 0xc9ad60, 0.96);
+      this.ground.fillCircle(x, y, radius);
+      this.ground.fillStyle(0xfff1b9, 0.55);
+      this.ground.fillCircle(x - radius * 0.28, y - radius * 0.28, radius * 0.32);
+    }
+  }
+
   private drawPebble(object: PlacedObject, alpha: number): void {
-    this.objectLayer.fillStyle(0x8f897d, 0.92 * alpha);
-    this.objectLayer.fillCircle(object.x, object.y, object.radius);
+    this.objectLayer.save();
+    this.objectLayer.translateCanvas(object.x, object.y);
+    this.objectLayer.rotateCanvas(object.rotation);
+    this.objectLayer.fillStyle(0x8f897d, 0.9 * alpha);
+    this.objectLayer.fillEllipse(0, 0, object.radius * 2 * object.stretch, object.radius * 1.58);
+    for (let i = 0; i < 5; i += 1) {
+      const angle = seededRange(object.variantSeed, i, -Math.PI, Math.PI);
+      const distance = seededRange(object.variantSeed, i + 10, 0, object.radius * 0.42);
+      const r = seededRange(object.variantSeed, i + 20, object.radius * 0.16, object.radius * 0.34);
+      this.objectLayer.fillStyle(i % 2 === 0 ? 0xa8a193 : 0x777168, (i % 2 === 0 ? 0.34 : 0.2) * alpha);
+      this.objectLayer.fillCircle(Math.cos(angle) * distance, Math.sin(angle) * distance * 0.8, r);
+    }
     this.objectLayer.fillStyle(0xb5ad9d, 0.42 * alpha);
-    this.objectLayer.fillCircle(object.x - 8, object.y - 7, object.radius * 0.38);
+    this.objectLayer.fillCircle(-object.radius * 0.28, -object.radius * 0.22, object.radius * 0.34);
+    this.objectLayer.restore();
   }
 
   private drawLeaf(object: PlacedObject, alpha: number): void {
+    this.objectLayer.save();
+    this.objectLayer.translateCanvas(object.x, object.y);
+    this.objectLayer.rotateCanvas(object.rotation);
     this.objectLayer.fillStyle(0x87936d, 0.9 * alpha);
-    this.objectLayer.fillEllipse(object.x, object.y, object.radius * 1.55, object.radius * 0.86);
+    this.objectLayer.fillEllipse(0, 0, object.radius * object.stretch * 1.55, object.radius * 0.86);
     this.objectLayer.lineStyle(2, 0x667257, 0.55 * alpha);
-    this.objectLayer.lineBetween(object.x - object.radius * 0.55, object.y, object.x + object.radius * 0.58, object.y);
+    this.objectLayer.lineBetween(-object.radius * object.stretch * 0.55, 0, object.radius * object.stretch * 0.58, 0);
+    this.objectLayer.restore();
   }
 
   private drawWater(object: PlacedObject, alpha: number): void {
@@ -526,10 +590,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawMystery(object: PlacedObject, alpha: number): void {
-    this.objectLayer.fillStyle(0x7d7890, 0.18 * alpha);
-    this.objectLayer.fillCircle(object.x, object.y, object.radius * 0.92);
-    this.objectLayer.lineStyle(3, 0xe8e0ca, 0.5 * alpha);
-    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.48);
+    const pulse = 0.9 + Math.sin(object.age * 4 + object.variantSeed) * 0.08;
+    this.objectLayer.fillStyle(0x7d7890, 0.16 * alpha);
+    this.objectLayer.fillCircle(object.x, object.y, object.radius * pulse);
+    this.objectLayer.lineStyle(3, this.toolColor(object.effectKind), 0.44 * alpha);
+    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.48 * pulse);
     this.objectLayer.fillStyle(0x5d576a, 0.72 * alpha);
     this.objectLayer.fillCircle(object.x, object.y - object.radius * 0.06, object.radius * 0.16);
     this.objectLayer.fillStyle(0xe8e0ca, 0.78 * alpha);
@@ -537,10 +602,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawFinger(object: PlacedObject, alpha: number): void {
-    this.objectLayer.fillStyle(0xb78f79, 0.18 * alpha);
-    this.objectLayer.fillCircle(object.x, object.y, object.radius);
-    this.objectLayer.lineStyle(3, 0xa67863, 0.16 * alpha);
-    this.objectLayer.strokeCircle(object.x, object.y, object.radius * 0.72);
+    this.objectLayer.save();
+    this.objectLayer.translateCanvas(object.x, object.y);
+    this.objectLayer.rotateCanvas(object.rotation);
+    this.objectLayer.fillStyle(0xb78f79, 0.14 * alpha);
+    this.objectLayer.fillEllipse(0, 0, object.radius * object.stretch * 2, object.radius * 1.05);
+    this.objectLayer.lineStyle(3, 0xa67863, 0.14 * alpha);
+    for (let i = -1; i <= 1; i += 1) {
+      this.objectLayer.strokeEllipse(0, i * object.radius * 0.14, object.radius * object.stretch * 1.45, object.radius * 0.46);
+    }
+    this.objectLayer.restore();
   }
 
   private pulse(x: number, y: number, kind: ToolKind): void {

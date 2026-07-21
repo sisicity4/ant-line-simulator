@@ -13,14 +13,22 @@ export interface Ant {
   y: number;
   heading: number;
   speed: number;
+  preferredSpeed: number;
   mode: AntMode;
   routeIndex: number;
+  routeBranchIndex: number;
   foodIndex: number;
   memoryHeading: number;
   cargoSize: number;
   cargoPieces: number;
   washedTtl: number;
   wiggle: number;
+  lastTargetDistance: number;
+  stalledTime: number;
+  routeStickiness: number;
+  pheromoneSensitivity: number;
+  explorationNoise: number;
+  shortcutBias: number;
 }
 
 export interface PlacedObject {
@@ -31,6 +39,9 @@ export interface PlacedObject {
   radius: number;
   age: number;
   effectKind: ToolKind;
+  rotation: number;
+  stretch: number;
+  variantSeed: number;
 }
 
 export interface SimulationStats {
