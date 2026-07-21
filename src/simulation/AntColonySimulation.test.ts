@@ -99,8 +99,13 @@ describe("AntColonySimulation", () => {
   it("keeps the chosen speed and placed objects until an explicit reset or removal", () => {
     const simulation = new AntColonySimulation();
     simulation.setTimeScale(20);
-    const point = simulation.getDisplayRoutes()[0][2];
-    const result = simulation.toggleToolAt(point.x, point.y, "pebble", false);
+    let result: "placed" | "removed" | "blocked" = "blocked";
+
+    for (let y = 80; y < simulation.height - 80 && result !== "placed"; y += 80) {
+      for (let x = 80; x < simulation.width - 80 && result !== "placed"; x += 80) {
+        result = simulation.toggleToolAt(x, y, "pebble", false);
+      }
+    }
 
     simulation.step(10_000);
 
